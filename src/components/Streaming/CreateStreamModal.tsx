@@ -1,18 +1,20 @@
-import React, { useState } from "react";
-import { X, Video, Lock, Sword, Globe, ArrowLeft, User } from "lucide-react";
+import React, { useContext, useEffect, useState } from "react";
+import { X, Video, Lock, CircleDollarSign, Globe, ArrowLeft, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { StreamContext } from "../../contexts/StreamContext";
 
 interface CreateStreamModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateStream: (streamData: { title: string; type: "public" | "private" | "battle" }) => void;
+  onCreateStream: (streamData: { title: string; type: "public" | "private" | "premium" }) => void;
 }
 
 const CreateStreamModal: React.FC<CreateStreamModalProps> = ({ isOpen, onClose }) => {
   const [streamTitle, setStreamTitle] = useState("");
-  const [selectedType, setSelectedType] = useState<"public" | "private" | "battle">("public");
+  const [selectedType, setSelectedType] = useState<"public" | "premium">("public");
   const [step, setStep] = useState<"select" | "details">("select");
+  const [premiumPrice, setPremiumPrice] = useState<string>("");
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -26,18 +28,10 @@ const CreateStreamModal: React.FC<CreateStreamModalProps> = ({ isOpen, onClose }
       borderColor: "border-green-500",
     },
     {
-      type: "private" as const,
-      icon: Lock,
-      title: "Private Stream",
-      description: "Only invited users can join your stream",
-      color: "bg-red-500",
-      borderColor: "border-red-500",
-    },
-    {
-      type: "battle" as const,
-      icon: Sword,
-      title: "Battle Stream",
-      description: "Competitive streaming with other creators",
+      type: "premium" as const,
+      icon: CircleDollarSign,
+      title: "Premium Stream",
+      description: "Viewers pay coins to watch your stream",
       color: "bg-orange-500",
       borderColor: "border-orange-500",
     },
@@ -46,18 +40,36 @@ const CreateStreamModal: React.FC<CreateStreamModalProps> = ({ isOpen, onClose }
   const handleClose = () => {
     setStreamTitle("");
     setSelectedType("public");
+    setPremiumPrice("");
     setStep("select");
     onClose();
   };
 
-  const handleTypeSelect = (type: "public" | "private" | "battle") => {
+  const handleTypeSelect = (type: "public" | "premium") => {
     setSelectedType(type);
     setStep("details"); // move to details modal
   };
 
-  const handleStart = () => {
-    navigate(`/streaming/${user?.username}/${selectedType}`);
-    handleClose();
+  const handleStart = async () => {
+    try {
+      // Generate room ID for this streaming session
+      const newRoomId = Math.random().toString(36).substring(2, 9);
+      console.log('🎬 Creating new stream with roomId:', newRoomId);
+      
+      // Pass stream data through navigation state
+      const streamData = {
+        title: streamTitle,
+        streamType: selectedType,
+        name: user?.username || "Anonymous",
+        price: selectedType === "premium" ? Number(premiumPrice) : 0,
+      };
+      
+      navigate(`/streaming/${newRoomId}`, { state: streamData });
+    } catch (err) {
+      console.error("Failed to create stream:", err);
+    } finally {
+      handleClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -67,7 +79,7 @@ const CreateStreamModal: React.FC<CreateStreamModalProps> = ({ isOpen, onClose }
       <div className="relative bg-dark-700 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 overflow-hidden">
         {/* Wrapper with sliding animation */}
         <div className="flex transition-transform duration-500" style={{ transform: step === "select" ? "translateX(0%)" : "translateX(-100%)" }}>
-          
+
           {/* Step 1 - Type Selection */}
           <div className="w-full flex-shrink-0">
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
@@ -114,36 +126,48 @@ const CreateStreamModal: React.FC<CreateStreamModalProps> = ({ isOpen, onClose }
             <div className="p-6 space-y-4">
               <h2 className="text-lg font-bold text-white">
                 {selectedType === "public" && "Public Stream Details"}
-                {selectedType === "private" && "Private Stream Setup"}
-                {selectedType === "battle" && "Battle Stream Arena"}
+                {selectedType === "premium" && "Premium Stream Setup"}
               </h2>
 
-              {/* Example form */}
-              <input
-                type="text"
-                value={streamTitle}
-                onChange={(e) => setStreamTitle(e.target.value)}
-                placeholder="Enter stream title"
-                className="w-full p-3 rounded-lg bg-dark-600 text-white border border-gray-600 focus:border-primary-500"
-              />
-
-              {selectedType === "private" && (
+              {/* Stream title input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Stream Title
+                </label>
                 <input
                   type="text"
-                  placeholder="Enter invite code"
-                  className="w-full p-3 rounded-lg bg-dark-600 text-white border border-gray-600"
+                  value={streamTitle}
+                  onChange={(e) => setStreamTitle(e.target.value)}
+                  placeholder="Enter stream title"
+                  required
+                  className="w-full p-3 rounded-lg bg-dark-600 text-white border border-gray-600 focus:border-primary-500"
                 />
-              )}
+              </div>
 
-              {selectedType === "battle" && (
-                <p className="text-sm text-gray-400">
-                  You’ll be matched with another creator for a live battle!
-                </p>
+              {selectedType === "premium" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Price (Coins)
+                  </label>
+                  <input
+                    type="number"
+                    value={premiumPrice}
+                    onChange={(e) => setPremiumPrice(e.target.value)}
+                    placeholder="Enter coin price (e.g., 100)"
+                    min="0"
+                    required
+                    className="w-full p-3 rounded-lg bg-dark-600 text-white border border-gray-600 focus:border-primary-500"
+                  />
+                  <p className="text-sm text-gray-400 mt-2">
+                    Viewers will pay this amount to watch your premium stream
+                  </p>
+                </div>
               )}
 
               <button
                 onClick={handleStart}
-                className="w-full bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-transform duration-300 hover:scale-105 flex items-center justify-center space-x-2"
+                disabled={!streamTitle.trim() || (selectedType === "premium" && !premiumPrice)}
+                className="w-full bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-transform duration-300 hover:scale-105 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <Video className="h-5 w-5" />
                 <span>Start Streaming</span>

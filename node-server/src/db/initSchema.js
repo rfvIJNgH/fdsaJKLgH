@@ -207,6 +207,23 @@ async function init() {
       );`
     )
 
+    //streaminfo table schema
+    await client.query(
+      `
+      CREATE TABLE streams (
+        id SERIAL PRIMARY KEY,
+        room_id TEXT UNIQUE NOT NULL,
+        streamer_name TEXT,
+        title TEXT,
+        stream_type TEXT,
+        price INTEGER,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        ended_at TIMESTAMP
+      );
+      `
+    )
+
     await client.query('COMMIT');
     console.log('Database schema initialized.');
   } catch (e) {

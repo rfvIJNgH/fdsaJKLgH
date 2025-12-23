@@ -6,8 +6,21 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
+    force: true
   },
   server: {
     host: '0.0.0.0'
-  }
+  },
+  define: {
+    global: "window",
+  },
+resolve: {
+    alias: {
+      stream: 'stream-browserify',
+      buffer: 'buffer',
+      process: 'process/browser',
+      events: 'events',
+      util: 'util',
+    },
+  },
 });

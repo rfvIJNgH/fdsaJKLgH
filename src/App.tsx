@@ -43,12 +43,13 @@ import { useEffect } from "react";
 import { useChatStore } from "./store/useChatStore";
 import { CoinProvider } from "./contexts/CoinContext";
 import EditContent from "./pages/Contents/EditContent";
+import { StreamProvider } from "./contexts/StreamContext"
 
 function App() {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
   const { setSocketConnect } = useChatStore();
-  const socket = useSocket('http://localhost:8080');
+  const socket = useSocket('https://arouzy-v3-1.onrender.com');
 
   useEffect(() => {
     if (socket && user) {
@@ -147,10 +148,10 @@ function App() {
                 <Route path="/trading/upload" element={<TradingUpload />} />
 
                 {/* Trading Content Page */}
-                <Route path="/trading" element={<TradingPage />} />
+                <Route path="/trading" element={isAuthenticated? (<TradingPage />):(<Navigate to="/login" state={{ from: location }} replace />)} />
 
                 {/* Trade Requests Page */}
-                <Route path="/trading/requests" element={<TradeRequests />} />
+                <Route path="/trading/requests" element={isAuthenticated? (<TradeRequests />):(<Navigate to="/login" state={{ from: location }} replace />)} />
 
                 {/* Collections Pages */}
                 <Route
@@ -164,7 +165,15 @@ function App() {
                 <Route path="/mycontent/:username" element={<MyContent />} />
 
                 {/* CreateStreaming Page*/}
-                <Route path="/streaming" element={<Streaming />} />
+                <Route path="/streaming" element={
+                  isAuthenticated ? (
+                    <StreamProvider>
+                      <Streaming />
+                    </StreamProvider>
+                  ) : (
+                    <Navigate to="/login" state={{ from: location }} replace />
+                  )
+                } />
 
                 {/* Messages Page */}
                 <Route path="/messages" element={<Messages />} />
@@ -193,14 +202,30 @@ function App() {
               {/**Layout Without Navbar and Footer */}
               <Route element={<LayoutWithoutNav />}>
                 {/* StreamingRoom Page*/}
-                <Route path="/streaming/:username/:selectedtype" element={<StreamingRoom />} />
-                <Route path="/streaming/joinstreaming/:streamingid" element={<JoinStreamingRoom />} />
+                <Route path="/streaming/:roomId" element={
+                  isAuthenticated ? (
+                    <StreamProvider>
+                      <StreamingRoom />
+                    </StreamProvider>
+                  ) : (
+                    <Navigate to="/login" state={{ from: location }} replace />
+                  )
+                } />
+                <Route path="/streaming/joinstreaming/:roomId" element={
+                  isAuthenticated ? (
+                    <StreamProvider>
+                      <JoinStreamingRoom />
+                    </StreamProvider>
+                  ) : (
+                    <Navigate to="/login" state={{ from: location }} replace />
+                  )
+                } />
               </Route>
             </Routes>
           </UserProvider>
         </NotificationProvider>
       </SearchProvider>
-      </CoinProvider>
+    </CoinProvider>
   );
 }
 

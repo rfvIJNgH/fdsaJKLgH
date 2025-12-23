@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:123123@localhost:5432/arouzy';
+const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:123123@localhost:5432/postgres';
 export const pool = new pg.Pool({
   connectionString: databaseUrl,
   max: 10,

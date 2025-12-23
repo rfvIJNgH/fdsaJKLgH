@@ -149,3 +149,17 @@ body {
 .pagination-item:not(.active) {
   @apply bg-dark-400 text-white hover:bg-dark-300;
 }
+
+/* Video Controls - Always Visible */
+video::-webkit-media-controls-panel {
+  opacity: 1 !important;
+  display: flex !important;
+}
+
+video::-webkit-media-controls {
+  opacity: 1 !important;
+}
+
+video::--webkit-media-controls-enclosure {
+  opacity: 1 !important;
+}

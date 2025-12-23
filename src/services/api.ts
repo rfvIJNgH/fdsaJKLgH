@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Define base URL for different environments
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://arouzy-v3-1.onrender.com";
 const CHAT_URL =
   import.meta.env.VITE_CHAT_SERVER_URL || "http://localhost:3001";
 

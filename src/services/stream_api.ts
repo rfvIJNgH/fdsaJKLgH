@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Define base URL for different environments
-const BASE_URL = import.meta.env.VITE_API_URL || "https://arouzy-v3-1.onrender.com";
+const BASE_URL = "https://arouzy-v3-stream-server.onrender.com";
 
 export const api = axios.create({
     baseURL: BASE_URL,
@@ -14,6 +14,7 @@ export const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem("token");
+        console.log(token);
         if (token) {
             config.headers["Authorization"] = `Bearer ${token}`;
         }
@@ -35,21 +36,28 @@ api.interceptors.response.use(
     }
 );
 
-//User API services
-export const userService = {
-    getAllUsers: async () => {
-        return api.get("/api/users");
-    }
-}
 
-//Content Service
-export const contentService = {
-    //get All Contents with Users
-    getAllContentsWithUsers: async () => {
-        return api.get("/api/content");
+// Stream API services
+export const streamService = {
+    createStream: async (data: {
+        roomId: string;
+        streamerName: string;
+        title: string;
+        streamType: "public" | "premium";
+        price: number;
+    }) => {
+        return api.post("/api/streams", data);
     },
-    //Delete Selected Contents
-    deleteSelectedContents: async (contentIds: number[]) => {
-        return api.post("/api/content/delete", { data: contentIds });
-    }
-}
+
+    getStreamByRoomId: async (roomId: string) => {
+        return api.get(`/api/streams/${roomId}`);
+    },
+
+    endStream: async (roomId: string) => {
+        return api.post(`/api/streams/${roomId}/end`);
+    },
+
+    getActiveStreams: async () => {
+        return api.get("/api/streams");
+    },
+};

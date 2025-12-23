@@ -41,8 +41,7 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',
-    'https://arouzy-production.up.railway.app',
-    'https://arouzy.vercel.app'
+    'https://arouzyfr.onrender.com'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -56,8 +55,7 @@ const io = new Server(server, {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5174',
-      'https://arouzy-production.up.railway.app',
-      'https://arouzy.vercel.app'
+      'https://arouzyfr.onrender.com'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],

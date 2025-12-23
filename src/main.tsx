@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import { AuthProvider } from './contexts/AuthContext';
+import process from "process";
+import { Buffer } from "buffer";
+
+window.process = process;
+window.Buffer = Buffer;
+
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

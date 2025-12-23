@@ -1,15 +1,19 @@
 import React from "react";
-import { X, Users, Video, Calendar, Clock, Globe, Lock, Swords } from "lucide-react";
+import { X, Users, Video, Globe, CircleDollarSign } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Stream {
     id: string;
     streamer: {
         username: string;
         avatar: string;
+        userId?: string;
     };
     thumbnail: string;
     joiners: number;
-    type: "public" | "private" | "battle";
+    title?: string;
+    type: "public" | "premium";
+    price?: number;
 }
 
 interface RoomInfoModalProps {
@@ -25,6 +29,8 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
     stream,
     onJoinRoom
 }) => {
+    const navigate = useNavigate();
+    
     if (!isOpen || !stream) return null;
 
     const formatJoiners = (count: number): string => {
@@ -37,10 +43,8 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
         switch (type) {
             case 'public':
                 return <Globe className="h-5 w-5" />;
-            case 'private':
-                return <Lock className="h-5 w-5" />;
-            case 'battle':
-                return <Swords className="h-5 w-5" />;
+            case 'premium':
+                return <CircleDollarSign className="h-5 w-5" />;
             default:
                 return <Video className="h-5 w-5" />;
         }
@@ -50,9 +54,7 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
         switch (type) {
             case 'public':
                 return 'text-green-400 bg-green-900/30 border-green-500/50';
-            case 'private':
-                return 'text-red-400 bg-red-900/30 border-red-500/50';
-            case 'battle':
+            case 'premium':
                 return 'text-orange-400 bg-orange-900/30 border-orange-500/50';
             default:
                 return 'text-blue-400 bg-blue-900/30 border-blue-500/50';
@@ -61,6 +63,13 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
 
     const handleJoin = () => {
         onJoinRoom(stream.id);
+        onClose();
+    };
+
+    const handleUsernameClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const userId = stream.streamer.userId || stream.streamer.username;
+        navigate(`/${userId}/profile`);
         onClose();
     };
 
@@ -98,6 +107,15 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
 
                 {/* Content */}
                 <div className="p-6">
+                    {/* Stream Title */}
+                    {stream.title && (
+                        <div className="mb-4">
+                            <h2 className="text-2xl font-bold text-white">
+                                {stream.title}
+                            </h2>
+                        </div>
+                    )}
+
                     {/* Streamer info */}
                     <div className="flex items-center space-x-4 mb-6">
                         <img
@@ -106,55 +124,33 @@ const RoomInfoModal: React.FC<RoomInfoModalProps> = ({
                             className="w-16 h-16 rounded-full object-cover border-2 border-gray-600"
                         />
                         <div className="flex-1">
-                            <h2 className="text-xl font-bold text-white mb-1">
+                            <h3 
+                                onClick={handleUsernameClick}
+                                className="text-xl font-bold text-white mb-1 cursor-pointer hover:text-primary-400 transition-colors"
+                            >
                                 {stream.streamer.username}
-                            </h2>
-                            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border text-sm font-medium ${getTypeColor(stream.type)}`}>
-                                {getTypeIcon(stream.type)}
-                                <span className="capitalize">{stream.type} Stream</span>
+                            </h3>
+                            <div className="flex items-center space-x-2">
+                                <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border text-sm font-medium ${getTypeColor(stream.type)}`}>
+                                    {getTypeIcon(stream.type)}
+                                    <span className="capitalize">{stream.type} Stream</span>
+                                </div>
+                                {stream.type === 'premium' && stream.price && (
+                                    <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                        ${stream.price}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {/* Stream details */}
-                    <div className="space-y-4 mb-6">
-                        <div className="bg-dark-700 rounded-lg p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">Stream Details</h3>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400 flex items-center space-x-2">
-                                        <Users className="h-4 w-4" />
-                                        <span>Current Viewers</span>
-                                    </span>
-                                    <span className="text-white font-semibold">{formatJoiners(stream.joiners)}</span>
-                                </div>
-                                
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400 flex items-center space-x-2">
-                                        <Clock className="h-4 w-4" />
-                                        <span>Started</span>
-                                    </span>
-                                    <span className="text-white font-semibold">2 hours ago</span>
-                                </div>
-
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400 flex items-center space-x-2">
-                                        <Video className="h-4 w-4" />
-                                        <span>Quality</span>
-                                    </span>
-                                    <span className="text-white font-semibold">1080p HD</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Stream description */}
+                    <div className="space-y-4 mb-6">                        
                         <div className="bg-dark-700 rounded-lg p-4">
                             <h3 className="text-lg font-semibold text-white mb-2">About this stream</h3>
                             <p className="text-gray-300 text-sm leading-relaxed">
-                                {stream.type === 'battle' 
-                                    ? "Join this epic battle stream where streamers compete in real-time challenges!"
-                                    : stream.type === 'private'
-                                    ? "This is an exclusive private stream. Join to experience unique content."
+                                {stream.type === 'premium' 
+                                    ? "Join our premium streaming to watch high-quality shows. Your payment waits 5 seconds before sending to keep you safe from scams."
                                     : "Welcome to this public stream! Join the community and enjoy the live content."
                                 }
                             </p>

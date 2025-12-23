@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Search, X, Users, Wifi, Plus, Video } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CreateStreamModal from "../../components/Streaming/CreateStreamModal";
 import RoomInfoModal from "../../components/Streaming/RoomInfoModal";
+import { streamService } from "../../services/stream_api";
+import { StreamContext } from "../../contexts/StreamContext";
 
 interface Stream {
     id: string;
@@ -12,7 +14,9 @@ interface Stream {
     };
     thumbnail: string;
     joiners: number;
-    type: "public" | "private" | "battle";
+    title?: string;
+    type: "public" | "premium";
+    price?: number;
 }
 
 const Streaming: React.FC = () => {
@@ -24,78 +28,42 @@ const Streaming: React.FC = () => {
     const [isRoomInfoModalOpen, setIsRoomInfoModalOpen] = useState<boolean>(false);
     const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
     const navigate = useNavigate();
+    const { setIsStreamer } = useContext(StreamContext);
 
-    const filters = ["all", "public", "private", "battle"];
+    const filters = ["all", "public", "private", "premium"];
 
-    // Mock data - replace with actual API call
+    // Initialize as viewer (not streamer) when browsing
     useEffect(() => {
-        const mockStreams: Stream[] = [
-            {
-                id: "1",
-                streamer: {
-                    username: "GamerPro123",
-                    avatar: "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/442576/pexels-photo-442576.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 247,
-                type: "public",
-            },
-            {
-                id: "2",
-                streamer: {
-                    username: "MusicLover",
-                    avatar: "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/1407322/pexels-photo-1407322.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 23,
-                type: "private",
-            },
-            {
-                id: "3",
-                streamer: {
-                    username: "ArtistVibe",
-                    avatar: "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/1183992/pexels-photo-1183992.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 892,
-                type: "battle",
-            },
-            {
-                id: "4",
-                streamer: {
-                    username: "YogaGuru",
-                    avatar: "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/317157/pexels-photo-317157.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 134,
-                type: "public",
-            },
-            {
-                id: "5",
-                streamer: {
-                    username: "ChefMaster",
-                    avatar: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 456,
-                type: "battle",
-            },
-            {
-                id: "6",
-                streamer: {
-                    username: "CodeNinja",
-                    avatar: "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150",
-                },
-                thumbnail: "https://images.pexels.com/photos/574071/pexels-photo-574071.jpeg?auto=compress&cs=tinysrgb&w=400",
-                joiners: 78,
-                type: "private",
-            },
-        ];
+        setIsStreamer(false);
+    }, [setIsStreamer]);
 
-        setTimeout(() => {
-            setStreams(mockStreams);
-            setIsLoading(false);
-        }, 1000);
+    useEffect(() => {
+        const fetchStreams = async () => {
+            try {
+                const { data } = await streamService.getActiveStreams();
+
+                setStreams(
+                    data.map((s: any) => ({
+                        id: s.id,
+                        streamer: {
+                            username: s.streamer_name,
+                            avatar: "/default-avatar.png",
+                        },
+                        thumbnail: "/default-thumbnail.jpg",
+                        joiners: 0,
+                        title: s.title,
+                        type: s.stream_type,
+                        price: s.price,
+                    }))
+                );
+            } catch (err) {
+                console.error("Failed to fetch streams", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchStreams();
     }, []);
 
     const filteredStreams = streams.filter((stream) => {
@@ -120,7 +88,7 @@ const Streaming: React.FC = () => {
         setIsModalOpen(false);
     };
 
-    const handleStreamCreation = (streamData: { title: string; type: "public" | "private" | "battle" }) => {
+    const handleStreamCreation = (streamData: { title: string; type: "public" | "private" | "premium" }) => {
         console.log("Creating stream:", streamData);
         alert(`Stream "${streamData.title}" of type "${streamData.type}" created successfully!`);
     };
@@ -136,8 +104,15 @@ const Streaming: React.FC = () => {
     };
 
     const handleJoinRoom = (streamId: string) => {
-        console.log("Joining stream:", streamId);
-        navigate(`/streaming/joinstreaming/${streamId}`);
+        console.log("Navigating to stream:", streamId);
+        // Just navigate - let JoinStreamingRoom handle the actual joining
+        // This prevents double-joining issues
+        navigate(`/streaming/joinstreaming/${streamId}` , { state: { selectedStream } });
+    };
+
+    const handleUsernameClick = (e: React.MouseEvent, username: string) => {
+        e.stopPropagation(); // Prevent card click
+        navigate(`/${username}/profile`);
     };
 
     if (isLoading) {
@@ -261,27 +236,44 @@ const Streaming: React.FC = () => {
                                         <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                                         <span>LIVE</span>
                                     </div>
+
+                                    {/* Premium Price Badge */}
+                                    {stream.type === 'premium' && stream.price && (
+                                        <div className="absolute top-3 right-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+                                            ${stream.price}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Content */}
                                 <div className="p-4">
+                                    {/* Stream Title */}
+                                    {stream.title && (
+                                        <h3 className="text-white font-semibold mb-2 truncate">
+                                            {stream.title}
+                                        </h3>
+                                    )}
+
                                     {/* Streamer Info */}
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
+                                        <div 
+                                            className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
+                                            onClick={(e) => handleUsernameClick(e, stream.streamer.username)}
+                                        >
                                             <img
                                                 src={stream.streamer.avatar}
                                                 alt={stream.streamer.username}
                                                 className="w-8 h-8 rounded-full object-cover"
                                             />
-                                            <p className="text-sm font-medium text-gray-300 truncate">
+                                            <p className="text-sm font-medium text-gray-300 truncate hover:text-primary-400 transition-colors">
                                                 {stream.streamer.username}
                                             </p>
                                         </div>
 
                                         {/* Meeting Type Badge */}
                                         <div className={`px-2 py-1 rounded-full text-xs font-semibold uppercase ${stream.type === 'public' ? 'bg-green-500 text-white' :
-                                            stream.type === 'private' ? 'bg-red-500 text-white' :
-                                                'bg-orange-500 text-white'
+                                            stream.type === 'premium' ? 'bg-orange-500 text-white' :
+                                                'bg-blue-500 text-white'
                                             }`}>
                                             {stream.type}
                                         </div>
