@@ -8,20 +8,18 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Wallet,
-  Clock,
-  CheckCircle,
-  XCircle,
   Loader2,
 } from "lucide-react";
 import {
   contentService,
   collectionService,
   userService,
-  transactionService,
   vipService,
 } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useCoin } from "../contexts/CoinContext";
+import PurchaseCoins from "./Coins/PurchaseCoins";
+import WithdrawCoins from "./Coins/WithdrawCoins";
 
 interface SettingsMenuItem {
   id: string;
@@ -34,15 +32,6 @@ interface DashboardCard {
   title: string;
   value: string | number;
   description?: string;
-}
-
-interface Transaction {
-  id: number;
-  type: "deposit" | "withdraw";
-  amount: number;
-  wallet_address: string;
-  status: string;
-  created_at: string;
 }
 
 const Settings: React.FC = () => {
@@ -87,18 +76,9 @@ const Settings: React.FC = () => {
   } | null>(null);
 
   // Payment state
-  const [paymentTab, setPaymentTab] = useState<"deposit" | "withdraw">(
-    "deposit"
+  const [paymentTab, setPaymentTab] = useState<"deposit" | "withdraw" | null>(
+    null
   );
-  const [walletAddress, setWalletAddress] = useState("");
-  const [amount, setAmount] = useState("");
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [paymentMessage, setPaymentMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   const dashboardCards: DashboardCard[] = [
     { title: "Your content", value: userContent },
@@ -154,70 +134,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handlePaymentSubmit = async () => {
-    if (!walletAddress.trim()) {
-      setPaymentMessage({
-        type: "error",
-        text: "Please enter a wallet address",
-      });
-      return;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-      setPaymentMessage({ type: "error", text: "Please enter a valid amount" });
-      return;
-    }
-
-    setProcessingPayment(true);
-    setPaymentMessage(null);
-
-    try {
-      if (paymentTab === "deposit") {
-        await transactionService.deposit({
-          amount: parseFloat(amount),
-          walletAddress: walletAddress.trim(),
-        });
-        setPaymentMessage({
-          type: "success",
-          text: "Deposit request submitted successfully! It will be processed shortly.",
-        });
-      } else {
-        await transactionService.withdraw({
-          amount: parseFloat(amount),
-          walletAddress: walletAddress.trim(),
-        });
-        setPaymentMessage({
-          type: "success",
-          text: "Withdrawal request submitted successfully! It will be processed shortly.",
-        });
-      }
-      setWalletAddress("");
-      setAmount("");
-      fetchTransactions();
-      if (currentUser?.id) {
-        fetchCoinData(String(currentUser.id));
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      setPaymentMessage({
-        type: "error",
-        text: err.response?.data?.message || `Failed to process ${paymentTab}`,
-      });
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
-  const fetchTransactions = async () => {
-    setLoadingTransactions(true);
-    try {
-      const res = await transactionService.getHistory({ limit: 10 });
-      setTransactions(res.data.data.transactions);
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-    } finally {
-      setLoadingTransactions(false);
-    }
-  };
 
   useEffect(() => {
     const fetchUserContent = async () => {
@@ -246,53 +162,12 @@ const Settings: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (activeMenuItem === "payment") {
-      fetchTransactions();
-    }
-  }, [activeMenuItem]);
-
-  useEffect(() => {
     if (currentUser) {
       setUsername(currentUser.username || "");
       setEmail(currentUser.email || "");
     }
   }, [currentUser]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-      case "approved":
-        return <CheckCircle size={16} className="text-green-400" />;
-      case "rejected":
-        return <XCircle size={16} className="text-red-400" />;
-      case "pending":
-      default:
-        return <Clock size={16} className="text-yellow-400" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-      case "approved":
-        return "text-green-400 bg-green-600/20 border-green-600/30";
-      case "rejected":
-        return "text-red-400 bg-red-600/20 border-red-600/30";
-      case "pending":
-      default:
-        return "text-yellow-400 bg-yellow-600/20 border-yellow-600/30";
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   return (
     <div className="min-h-screen bg-dark-500 text-white">
@@ -476,208 +351,134 @@ const Settings: React.FC = () => {
             {/* Payment Management */}
             {activeMenuItem === "payment" && (
               <div className="space-y-6">
-                {/* Balance Card */}
-                <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 backdrop-blur-sm rounded-xl p-6 border border-purple-500/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm mb-1">
-                        Available Balance
-                      </p>
-                      <p className="text-4xl font-bold text-white">
-                        {coins.toLocaleString()}{" "}
-                        <span className="text-lg text-purple-400">Coins</span>
-                      </p>
-                    </div>
-                    <Wallet size={48} className="text-purple-400 opacity-50" />
-                  </div>
+
+                {/* Deposit/Withdraw Buttons */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setPaymentTab("deposit")}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-medium transition-all ${
+                      paymentTab === "deposit"
+                        ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
+                        : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/30"
+                    }`}
+                  >
+                    <ArrowDownCircle size={20} />
+                    Deposit Coins
+                  </button>
+                  <button
+                    onClick={() => setPaymentTab("withdraw")}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-medium transition-all ${
+                      paymentTab === "withdraw"
+                        ? "bg-orange-600 text-white shadow-lg shadow-orange-600/30"
+                        : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/30"
+                    }`}
+                  >
+                    <ArrowUpCircle size={20} />
+                    Withdraw TRX
+                  </button>
                 </div>
 
-                {/* Deposit/Withdraw Tabs */}
-                <div className="bg-black/60 backdrop-blur-sm rounded-xl p-6">
-                  <div className="flex gap-4 mb-6">
-                    <button
-                      onClick={() => {
-                        setPaymentTab("deposit");
-                        setPaymentMessage(null);
-                      }}
-                      className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                        paymentTab === "deposit"
-                          ? "bg-green-600 text-white"
-                          : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50"
-                      }`}
-                    >
-                      <ArrowDownCircle size={20} />
-                      Deposit
-                    </button>
-                    <button
-                      onClick={() => {
-                        setPaymentTab("withdraw");
-                        setPaymentMessage(null);
-                      }}
-                      className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                        paymentTab === "withdraw"
-                          ? "bg-orange-600 text-white"
-                          : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50"
-                      }`}
-                    >
-                      <ArrowUpCircle size={20} />
-                      Withdraw
-                    </button>
-                  </div>
-
-                  {paymentMessage && (
-                    <div
-                      className={`mb-6 p-4 rounded-lg ${
-                        paymentMessage.type === "success"
-                          ? "bg-green-600/20 text-green-400 border border-green-600/30"
-                          : "bg-red-600/20 text-red-400 border border-red-600/30"
-                      }`}
-                    >
-                      {paymentMessage.text}
-                    </div>
-                  )}
-
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        {paymentTab === "deposit"
-                          ? "Your Crypto Wallet Address"
-                          : "Destination Wallet Address"}
-                      </label>
-                      <input
-                        type="text"
-                        value={walletAddress}
-                        onChange={(e) => setWalletAddress(e.target.value)}
-                        placeholder="Enter your crypto wallet address (e.g., 0x...)"
-                        className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50 transition-all duration-200"
-                      />
-                      <p className="text-gray-500 text-xs mt-2">
-                        {paymentTab === "deposit"
-                          ? "Enter the wallet address you'll be sending crypto from"
-                          : "Enter the wallet address where you want to receive your funds"}
+                {/* Initial Explanation Section */}
+                {!paymentTab && (
+                  <div className="bg-black/60 backdrop-blur-sm rounded-xl p-8">
+                    <div className="text-center mb-8">
+                      <h3 className="text-2xl font-bold text-white mb-3">
+                        Manage Your Coins
+                      </h3>
+                      <p className="text-gray-400">
+                        Choose an option above to deposit or withdraw your coins
                       </p>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Amount (Coins)
-                      </label>
-                      <input
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder="Enter amount"
-                        min="1"
-                        className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50 transition-all duration-200"
-                      />
-                      {paymentTab === "withdraw" && (
-                        <p className="text-gray-500 text-xs mt-2">
-                          Maximum available: {coins.toLocaleString()} coins
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={handlePaymentSubmit}
-                      disabled={processingPayment}
-                      className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                        paymentTab === "deposit"
-                          ? "bg-green-600 hover:bg-green-700 text-white"
-                          : "bg-orange-600 hover:bg-orange-700 text-white"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {processingPayment && (
-                        <Loader2 size={16} className="animate-spin" />
-                      )}
-                      {paymentTab === "deposit"
-                        ? "Submit Deposit Request"
-                        : "Submit Withdrawal Request"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Transaction History */}
-                <div className="bg-black/60 backdrop-blur-sm rounded-xl p-6">
-                  <h3 className="text-xl font-semibold text-white mb-4">
-                    Recent Transactions
-                  </h3>
-
-                  {loadingTransactions ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2
-                        size={32}
-                        className="animate-spin text-purple-400"
-                      />
-                    </div>
-                  ) : transactions.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      No transactions yet
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {transactions.map((tx) => (
-                        <div
-                          key={tx.id}
-                          className="flex items-center justify-between p-4 bg-gray-800/40 rounded-lg border border-gray-700/30"
-                        >
-                          <div className="flex items-center gap-4">
-                            {tx.type === "deposit" ? (
-                              <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center">
-                                <ArrowDownCircle
-                                  size={20}
-                                  className="text-green-400"
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-orange-600/20 flex items-center justify-center">
-                                <ArrowUpCircle
-                                  size={20}
-                                  className="text-orange-400"
-                                />
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-medium text-white capitalize">
-                                {tx.type}
-                              </p>
-                              <p className="text-xs text-gray-400 truncate max-w-[200px]">
-                                {tx.wallet_address}
-                              </p>
-                            </div>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {/* Deposit Info Card */}
+                      <div className="bg-green-600/10 border border-green-600/30 rounded-lg p-6 hover:border-green-600/50 transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-full bg-green-600/20 flex items-center justify-center">
+                            <ArrowDownCircle size={24} className="text-green-400" />
                           </div>
-                          <div className="text-right">
-                            <p
-                              className={`font-bold ${
-                                tx.type === "deposit"
-                                  ? "text-green-400"
-                                  : "text-orange-400"
-                              }`}
-                            >
-                              {tx.type === "deposit" ? "+" : "-"}
-                              {parseFloat(
-                                String(tx.amount)
-                              ).toLocaleString()}{" "}
-                              coins
-                            </p>
-                            <div className="flex items-center gap-2 justify-end mt-1">
-                              {getStatusIcon(tx.status)}
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor(
-                                  tx.status
-                                )}`}
-                              >
-                                {tx.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {formatDate(tx.created_at)}
-                            </p>
-                          </div>
+                          <h4 className="text-xl font-semibold text-white">
+                            Deposit Coins
+                          </h4>
                         </div>
-                      ))}
+                        <p className="text-gray-300 text-sm mb-4">
+                          Add coins to your account balance to purchase premium content, subscribe to creators, and unlock exclusive features.
+                        </p>
+                        <ul className="text-gray-400 text-sm space-y-2">
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-400 mt-1">•</span>
+                            <span>Multiple cryptocurrency payment options</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-400 mt-1">•</span>
+                            <span>Instant coin credit after payment</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-400 mt-1">•</span>
+                            <span>Secure payment processing via NOWPayments</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-green-400 mt-1">•</span>
+                            <span>1 Coin = $1 USD value</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* Withdraw Info Card */}
+                      <div className="bg-orange-600/10 border border-orange-600/30 rounded-lg p-6 hover:border-orange-600/50 transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-full bg-orange-600/20 flex items-center justify-center">
+                            <ArrowUpCircle size={24} className="text-orange-400" />
+                          </div>
+                          <h4 className="text-xl font-semibold text-white">
+                            Withdraw to TRX
+                          </h4>
+                        </div>
+                        <p className="text-gray-300 text-sm mb-4">
+                          Convert your coins to TRX and receive them instantly to your TRON wallet.
+                        </p>
+                        <ul className="text-gray-400 text-sm space-y-2">
+                          <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-1">•</span>
+                            <span>Instant withdrawal to TRON wallet</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-1">•</span>
+                            <span>Automatic processing - no waiting</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-1">•</span>
+                            <span>Minimum withdrawal: 1 coin</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-1">•</span>
+                            <span>1 Coin = 1 TRX conversion rate</span>
+                          </li>
+                        </ul>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    <div className="mt-6 bg-purple-600/10 border border-purple-600/30 rounded-lg p-4">
+                      <p className="text-gray-300 text-sm text-center">
+                        <span className="text-purple-400 font-medium">💡 Tip:</span> Keep some coins in your balance to quickly purchase content and support your favorite creators!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Deposit Section - Show PurchaseCoins Component */}
+                {paymentTab === "deposit" && (
+                  <div className="bg-black/60 backdrop-blur-sm rounded-xl p-6">
+                    <PurchaseCoins />
+                  </div>
+                )}
+
+                {/* Withdraw Section - Show WithdrawCoins Component */}
+                {paymentTab === "withdraw" && (
+                  <div className="bg-black/60 backdrop-blur-sm rounded-xl p-6">
+                    <WithdrawCoins />
+                  </div>
+                )}
               </div>
             )}
 

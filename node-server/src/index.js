@@ -28,6 +28,7 @@ import { reviewRouter } from './routes/review.js';
 import { paymentRouter } from './routes/payment.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { checkConfiguration } from './lib/trc20Service.js';
 
 
 dotenv.config();
@@ -297,4 +298,18 @@ io.on('connection', (socket) => {
 const port = process.env.PORT || 8080;
 server.listen(port, () => {
   console.log(`Node server running on port ${port}`);
+  
+  // Check TRC20 configuration
+  const trc20Status = checkConfiguration();
+  console.log('\n--- TRC20 Withdrawal Service ---');
+  console.log(`Status: ${trc20Status.isConfigured ? '✅ CONFIGURED' : '❌ NOT CONFIGURED'}`);
+  console.log(`Network: ${trc20Status.network}`);
+  console.log(`Min Withdrawal: ${trc20Status.minWithdrawal} USDT`);
+  if (!trc20Status.isConfigured) {
+    console.log('\n⚠️  SETUP REQUIRED: Add to node-server/.env:');
+    console.log('   TRON_WALLET_ADDRESS=T...');
+    console.log('   TRON_PRIVATE_KEY=...');
+    console.log('   Get test funds: https://www.trongrid.io/faucet');
+  }
+  console.log('--------------------------------\n');
 });

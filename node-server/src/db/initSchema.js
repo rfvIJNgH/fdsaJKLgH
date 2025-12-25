@@ -277,12 +277,20 @@ async function init() {
         type VARCHAR(20) NOT NULL CHECK (type IN ('deposit', 'withdraw')),
         amount DECIMAL(18, 8) NOT NULL,
         wallet_address VARCHAR(255) NOT NULL,
+        transaction_hash VARCHAR(255),
         status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
       `
     )
+
+    // Create indexes for transactions
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(transaction_hash) WHERE transaction_hash IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+    `);
 
     // reviews table schema
     await client.query(
