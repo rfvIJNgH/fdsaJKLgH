@@ -10,6 +10,7 @@ const PaymentSuccess: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<'checking' | 'success' | 'pending' | 'failed'>('checking');
   const [paymentDetails, setPaymentDetails] = useState<any>(null);
+  const [coinsRefreshed, setCoinsRefreshed] = useState(false);
   const { fetchCoinData } = useCoin();
   const { user } = useAuth();
   // NOWPayments sends NP_id in the URL
@@ -37,10 +38,11 @@ const PaymentSuccess: React.FC = () => {
           
           if (status === 'finished' || status === 'confirmed') {
             setPaymentStatus('success');
-            // Refresh coin balance when payment is successful
-            if (user?.id) {
+            // Refresh coin balance ONLY ONCE when payment is successful
+            if (user?.id && !coinsRefreshed) {
               console.log('Refreshing coin balance for user:', user.id);
               await fetchCoinData(String(user.id));
+              setCoinsRefreshed(true);
             }
           } else if (status === 'waiting' || status === 'confirming') {
             setPaymentStatus('pending');
@@ -68,15 +70,20 @@ const PaymentSuccess: React.FC = () => {
 
     checkPaymentStatus();
     
-    // Poll payment status every 5 seconds if pending
-    const interval = setInterval(() => {
-      if (paymentStatus === 'pending' || paymentStatus === 'checking') {
+    // Poll payment status every 5 seconds ONLY if pending or checking
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (paymentStatus === 'pending' || paymentStatus === 'checking') {
+      interval = setInterval(() => {
         checkPaymentStatus();
-      }
-    }, 5000);
+      }, 5000);
+    }
 
-    return () => clearInterval(interval);
-  }, [paymentId, paymentStatus, user, fetchCoinData]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentId, paymentStatus]); // Removed user, fetchCoinData, coinsRefreshed from deps
 
   return (
     <div className="min-h-screen bg-dark-700 text-white flex items-center justify-center px-4">

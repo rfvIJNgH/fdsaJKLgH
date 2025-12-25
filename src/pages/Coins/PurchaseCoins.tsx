@@ -24,7 +24,8 @@ const PurchaseCoins: React.FC = () => {
     if (user?.id) {
       fetchCoinData(String(user.id));
     }
-  }, [user, fetchCoinData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // USD per coin rate
   const coinRate = 1.00; // $1.00 per coin
