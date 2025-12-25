@@ -39,8 +39,15 @@ tradingRouter.get('/', authRequired, async (req, res) => {
     for (const r of rows) {
       let hasAccess = false;
       if (r.user_id === userId) hasAccess = true; else {
+        // Check if user has access via accepted trade:
+        // 1. User requested this content (from_user_id) and trade was accepted
+        // 2. This content was offered to the user (to_user_id) via offered_content_id
         const { rows: cnt } = await pool.query(`
-          SELECT COUNT(*)::int as c FROM trade_requests WHERE trading_content_id = $1 AND ((from_user_id = $2 AND status = 'accepted') OR (to_user_id = $2 AND status = 'accepted'))
+          SELECT COUNT(*)::int as c FROM trade_requests 
+          WHERE status = 'accepted' AND (
+            (trading_content_id = $1 AND from_user_id = $2) OR
+            (offered_content_id = $1 AND to_user_id = $2)
+          )
         `, [r.id, userId]);
         hasAccess = cnt[0].c > 0;
       }
@@ -129,6 +136,135 @@ tradingRouter.get('/debug/requests', async (_req, res) => {
     `);
     res.json(rows);
   } catch { res.status(500).send('Database error'); }
+});
+
+// Create or update trading review
+tradingRouter.post('/reviews', authRequired, async (req, res) => {
+  const { tradingContentId, rating, reviewText } = req.body;
+  const userId = req.user.id;
+
+  if (!tradingContentId) {
+    return res.status(400).json({ success: false, message: 'Trading content ID is required' });
+  }
+
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+  }
+
+  try {
+    // Check if trading content exists
+    const contentCheck = await pool.query('SELECT id, user_id FROM trading_content WHERE id = $1', [tradingContentId]);
+    if (contentCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Trading content not found' });
+    }
+
+    // Check if user has access to this trading content (completed trade)
+    const tcUserId = contentCheck.rows[0].user_id;
+    if (tcUserId !== userId) {
+      // Check access same way as listing:
+      // 1. User requested this content (from_user_id) and trade was accepted
+      // 2. This content was offered to the user (to_user_id) via offered_content_id
+      const { rows: accessCheck } = await pool.query(
+        `SELECT COUNT(*)::int as c FROM trade_requests 
+         WHERE status = 'accepted' AND (
+           (trading_content_id = $1 AND from_user_id = $2) OR
+           (offered_content_id = $1 AND to_user_id = $2)
+         )`,
+        [tradingContentId, userId]
+      );
+      if (accessCheck[0].c === 0) {
+        return res.status(403).json({ success: false, message: 'You must complete a trade to review this content' });
+      }
+    }
+
+    // Check if user already reviewed
+    const existingReview = await pool.query(
+      'SELECT id FROM trading_reviews WHERE user_id = $1 AND trading_content_id = $2',
+      [userId, tradingContentId]
+    );
+
+    if (existingReview.rows.length > 0) {
+      // Update existing review
+      const result = await pool.query(
+        `UPDATE trading_reviews 
+         SET rating = $1, review_text = $2, updated_at = CURRENT_TIMESTAMP 
+         WHERE user_id = $3 AND trading_content_id = $4 
+         RETURNING *`,
+        [rating.toFixed(1), reviewText || '', userId, tradingContentId]
+      );
+      return res.json({ success: true, message: 'Review updated successfully', data: result.rows[0] });
+    }
+
+    // Create new review
+    const result = await pool.query(
+      `INSERT INTO trading_reviews (user_id, trading_content_id, rating, review_text)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [userId, tradingContentId, rating.toFixed(1), reviewText || '']
+    );
+
+    res.status(201).json({ success: true, message: 'Review submitted successfully', data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating trading review:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get reviews for a trading content
+tradingRouter.get('/reviews/:tradingContentId', async (req, res) => {
+  const { tradingContentId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT r.*, u.username, u.profile_image
+       FROM trading_reviews r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.trading_content_id = $1
+       ORDER BY r.created_at DESC`,
+      [tradingContentId]
+    );
+
+    // Get average rating
+    const avgResult = await pool.query(
+      `SELECT ROUND(AVG(rating)::numeric, 1) as average_rating, COUNT(*) as total_reviews
+       FROM trading_reviews WHERE trading_content_id = $1`,
+      [tradingContentId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        reviews: result.rows,
+        averageRating: avgResult.rows[0].average_rating,
+        totalReviews: parseInt(avgResult.rows[0].total_reviews)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching trading reviews:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get user's review for a specific trading content
+tradingRouter.get('/reviews/user/:tradingContentId', authRequired, async (req, res) => {
+  const { tradingContentId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM trading_reviews WHERE user_id = $1 AND trading_content_id = $2',
+      [userId, tradingContentId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: true, data: null });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching user trading review:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
 

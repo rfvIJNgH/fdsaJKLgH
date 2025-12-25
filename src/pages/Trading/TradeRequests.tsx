@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { tradingService } from "../../services/api";
+import { useNavigate } from "react-router-dom";
+import { tradingService, tradingReviewService } from "../../services/api";
 import { getThumbnailUrl } from "../../utils/imageUtils";
+import { Star, X } from "lucide-react";
 
 interface TradeRequest {
   id: number;
@@ -18,6 +20,7 @@ interface TradeRequest {
 }
 
 const TradeRequests: React.FC = () => {
+  const navigate = useNavigate();
   const [tradeRequests, setTradeRequests] = useState<TradeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +28,59 @@ const TradeRequests: React.FC = () => {
   const [processingRequests, setProcessingRequests] = useState<Set<number>>(
     new Set()
   );
+  const [contentRatings, setContentRatings] = useState<Map<number, { averageRating: string | null; totalReviews: number }>>(new Map());
+  
+  // Reviews view modal state
+  const [reviewsModal, setReviewsModal] = useState<{
+    isOpen: boolean;
+    contentId: number | null;
+    contentTitle: string;
+    reviews: any[];
+    averageRating: string | null;
+    totalReviews: number;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    contentId: null,
+    contentTitle: "",
+    reviews: [],
+    averageRating: null,
+    totalReviews: 0,
+    loading: false,
+  });
 
   useEffect(() => {
     fetchTradeRequests();
   }, []);
+
+  // Fetch ratings for offered content
+  useEffect(() => {
+    const fetchContentRatings = async () => {
+      const ratingPromises = tradeRequests.map(async (request) => {
+        try {
+          const response = await tradingReviewService.getReviews(request.offeredContentId);
+          return {
+            contentId: request.offeredContentId,
+            averageRating: response.data.data.averageRating,
+            totalReviews: response.data.data.totalReviews,
+          };
+        } catch {
+          return { contentId: request.offeredContentId, averageRating: null, totalReviews: 0 };
+        }
+      });
+
+      const ratings = await Promise.all(ratingPromises);
+      const ratingsMap = new Map<number, { averageRating: string | null; totalReviews: number }>();
+      ratings.forEach((r) => {
+        ratingsMap.set(r.contentId, { averageRating: r.averageRating, totalReviews: r.totalReviews });
+      });
+      setContentRatings(ratingsMap);
+    };
+
+    if (tradeRequests.length > 0) {
+      fetchContentRatings();
+    }
+  }, [tradeRequests]);
 
   const fetchTradeRequests = async () => {
     setIsLoading(true);
@@ -83,6 +135,46 @@ const TradeRequests: React.FC = () => {
         return newSet;
       });
     }
+  };
+
+  // Open reviews modal
+  const handleViewReviews = async (contentId: number, contentTitle: string) => {
+    setReviewsModal({
+      isOpen: true,
+      contentId,
+      contentTitle,
+      reviews: [],
+      averageRating: contentRatings.get(contentId)?.averageRating || null,
+      totalReviews: contentRatings.get(contentId)?.totalReviews || 0,
+      loading: true,
+    });
+
+    try {
+      const response = await tradingReviewService.getReviews(contentId);
+      setReviewsModal((prev) => ({
+        ...prev,
+        reviews: response.data.data.reviews,
+        averageRating: response.data.data.averageRating,
+        totalReviews: response.data.data.totalReviews,
+        loading: false,
+      }));
+    } catch (err) {
+      console.log(err);
+      setReviewsModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Close reviews modal
+  const closeReviewsModal = () => {
+    setReviewsModal({
+      isOpen: false,
+      contentId: null,
+      contentTitle: "",
+      reviews: [],
+      averageRating: null,
+      totalReviews: 0,
+      loading: false,
+    });
   };
 
   if (isLoading) {
@@ -182,15 +274,32 @@ const TradeRequests: React.FC = () => {
                     Their Content (What they're offering)
                   </h3>
                   <div className="flex items-center space-x-3">
-                    <img
-                      src={getThumbnailUrl(request.offeredContentFileUrl)}
-                      alt={request.offeredContentTitle}
-                      className="w-16 h-16 object-cover rounded border border-dark-600"
-                    />
+                    <div className="w-16 h-16 rounded border border-dark-600 bg-gradient-to-br from-dark-600 via-dark-500 to-dark-600 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
                     <div className="flex-1">
                       <div className="text-white font-medium line-clamp-2">
                         {request.offeredContentTitle}
                       </div>
+                      {/* Rating Display */}
+                      {contentRatings.get(request.offeredContentId)?.totalReviews ? (
+                        <button
+                          onClick={() => handleViewReviews(request.offeredContentId, request.offeredContentTitle)}
+                          className="flex items-center gap-1 mt-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
+                        >
+                          <Star className="h-3.5 w-3.5 fill-yellow-400" />
+                          <span className="font-medium">
+                            {contentRatings.get(request.offeredContentId)?.averageRating || "0"}
+                          </span>
+                          <span className="text-gray-400 hover:text-gray-300">
+                            ({contentRatings.get(request.offeredContentId)?.totalReviews} reviews)
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="text-xs text-gray-500 mt-1">No reviews yet</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -218,6 +327,101 @@ const TradeRequests: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Reviews Modal */}
+      {reviewsModal.isOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-600 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-dark-400 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Reviews</h3>
+                <p className="text-sm text-gray-400 truncate">{reviewsModal.contentTitle}</p>
+              </div>
+              <button
+                onClick={closeReviewsModal}
+                className="p-2 hover:bg-dark-500 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Average Rating */}
+            <div className="px-4 py-3 bg-dark-500/50 flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-5 w-5 ${
+                      parseFloat(reviewsModal.averageRating || "0") >= star
+                        ? "fill-yellow-400 text-yellow-400"
+                        : parseFloat(reviewsModal.averageRating || "0") >= star - 0.5
+                        ? "fill-yellow-400/50 text-yellow-400"
+                        : "text-gray-500"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-white font-medium">
+                {reviewsModal.averageRating || "0"} / 5.0
+              </span>
+              <span className="text-gray-400 text-sm">
+                ({reviewsModal.totalReviews} {reviewsModal.totalReviews === 1 ? "review" : "reviews"})
+              </span>
+            </div>
+
+            {/* Reviews List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {reviewsModal.loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                </div>
+              ) : reviewsModal.reviews.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No reviews yet
+                </div>
+              ) : (
+                reviewsModal.reviews.map((review: any) => (
+                  <div key={review.id} className="bg-dark-500 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+                          <span className="text-primary-400 text-sm font-medium">
+                            {review.username?.charAt(0).toUpperCase() || "?"}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            closeReviewsModal();
+                            navigate(`/${review.username}/profile`);
+                          }}
+                          className="text-primary-400 font-medium hover:text-primary-300 transition-colors"
+                        >
+                          @{review.username}
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-yellow-400 font-medium">{review.rating}</span>
+                      </div>
+                    </div>
+                    {review.review_text && (
+                      <p className="text-gray-300 text-sm">{review.review_text}</p>
+                    )}
+                    <p className="text-gray-500 text-xs mt-2">
+                      {new Date(review.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

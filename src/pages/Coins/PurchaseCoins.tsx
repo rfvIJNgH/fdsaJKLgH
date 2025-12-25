@@ -1,36 +1,131 @@
-import React, { useState } from 'react';
-import { Coins, CreditCard, Wallet, Star, Zap, Crown, Gift } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Coins, Wallet, Star, Zap, Crown, Gift, ExternalLink, Loader2 } from 'lucide-react';
 import { CoinPack } from '../../interface/interface';
 import { useCoin } from "../../contexts/CoinContext";
 import { useAuth } from '../../contexts/AuthContext';
+import { paymentService } from '../../services/api';
 import VerifyModal from './VerifyModal';
 
 const PurchaseCoins: React.FC = () => {
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
-  const [customAmount, setCustomAmount] = useState<number>(100);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('card');
+  const [customAmount, setCustomAmount] = useState<number>(10);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('usdttrc20');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const { addCoins, coinData } = useCoin();
+  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
+  const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
+  const [loadingEstimate, setLoadingEstimate] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const { coinData, fetchCoinData } = useCoin();
   const { user } = useAuth();
 
+  // Refresh coin balance when component mounts (in case user returned from payment)
+  useEffect(() => {
+    if (user?.id) {
+      fetchCoinData(String(user.id));
+    }
+  }, [user, fetchCoinData]);
+
   // USD per coin rate
-  const coinRate = 0.01; // $0.01 per coin
+  const coinRate = 1.00; // $1.00 per coin
+
+  // Fetch available currencies on mount
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      setLoadingCurrencies(true);
+      try {
+        const response = await paymentService.getCurrencies();
+        if (response.data.success) {
+          // Filter for USDT stablecoins (different networks)
+          // NOWPayments uses these names for different networks
+          const stablecoinVariants = [
+            'usdttrc20',   // USDT on Tron (TRC20)
+            'usdtbep20',   // USDT on BSC (BEP20)
+            'usdtbsc',     // Alternative name for BSC
+            'usdterc20',   // USDT on Ethereum (ERC20)
+            'usdt',        // Generic USDT
+            'usdtmatic',   // USDT on Polygon
+            'usdtsol'      // USDT on Solana
+          ];
+          
+          const available = response.data.currencies.filter((curr: string) => 
+            stablecoinVariants.includes(curr.toLowerCase())
+          );
+          
+          console.log('Available USDT currencies:', available);
+          
+          if (available.length > 0) {
+            setAvailableCurrencies(available);
+            // Set default to first available, preferably TRC20
+            if (available.includes('usdttrc20')) {
+              setSelectedCurrency('usdttrc20');
+            } else {
+              setSelectedCurrency(available[0]);
+            }
+          } else {
+            // Fallback to default list if none found
+            setAvailableCurrencies(['usdttrc20', 'usdtbep20', 'usdterc20']);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching currencies:', error);
+        // Set default stablecoins if API fails
+        setAvailableCurrencies(['usdttrc20', 'usdtbep20', 'usdterc20']);
+      } finally {
+        setLoadingCurrencies(false);
+      }
+    };
+
+    fetchCurrencies();
+  }, []);
+
+  // Fetch estimate when currency or amount changes
+  useEffect(() => {
+    const fetchEstimate = async () => {
+      const purchaseDetails = getPurchaseDetails();
+      const priceInUSD = parseFloat(purchaseDetails.price);
+
+      if (priceInUSD > 0 && selectedCurrency) {
+        setLoadingEstimate(true);
+        try {
+          const response = await paymentService.getEstimate(
+            priceInUSD,
+            selectedCurrency,
+            'usd'
+          );
+          if (response.data.success && response.data.data) {
+            const estimate = parseFloat(response.data.data.estimated_amount);
+            if (!isNaN(estimate)) {
+              setEstimatedAmount(estimate);
+            } else {
+              setEstimatedAmount(null);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching estimate:', error);
+          setEstimatedAmount(null);
+        } finally {
+          setLoadingEstimate(false);
+        }
+      }
+    };
+
+    fetchEstimate();
+  }, [selectedCurrency, customAmount, selectedPack]);
 
   const coinPacks: CoinPack[] = [
     {
       id: 'starter',
-      coins: 100,
-      price: 0.99,
+      coins: 10,
+      price: 10.00,
       title: 'Starter Pack',
       description: 'Perfect for beginners',
       icon: <Star className="text-blue-400" size={24} />
     },
     {
       id: 'popular',
-      coins: 500,
-      price: 4.49,
-      originalPrice: 5.00,
-      bonus: 50,
+      coins: 50,
+      price: 50.00,
       popular: true,
       title: 'Popular Pack',
       description: 'Most chosen by users',
@@ -38,20 +133,16 @@ const PurchaseCoins: React.FC = () => {
     },
     {
       id: 'value',
-      coins: 1000,
-      price: 8.99,
-      originalPrice: 10.00,
-      bonus: 100,
+      coins: 100,
+      price: 100.00,
       title: 'Value Pack',
       description: 'Great value for money',
       icon: <Gift className="text-green-400" size={24} />
     },
     {
       id: 'premium',
-      coins: 2500,
-      price: 19.99,
-      originalPrice: 25.00,
-      bonus: 500,
+      coins: 250,
+      price: 250.00,
       title: 'Premium Pack',
       description: 'Maximum savings',
       icon: <Crown className="text-primary-400" size={24} />
@@ -60,11 +151,11 @@ const PurchaseCoins: React.FC = () => {
 
   const handleCustomAmountChange = (value: string) => {
     const numValue = parseInt(value) || 0;
-    // Set constraints: minimum 1 coin, maximum 10,000 coins
-    if (numValue >= 1 && numValue <= 10000) {
+    // Set constraints: minimum 1 coin, maximum 1,000 coins
+    if (numValue >= 1 && numValue <= 1000) {
       setCustomAmount(numValue);
-    } else if (numValue > 10000) {
-      setCustomAmount(10000);
+    } else if (numValue > 1000) {
+      setCustomAmount(1000);
     } else if (numValue < 1 && value !== '') {
       setCustomAmount(1);
     }
@@ -98,16 +189,43 @@ const PurchaseCoins: React.FC = () => {
 
   const handleConfirmPurchase = async () => {
     const purchaseDetails = getPurchaseDetails();
+    setProcessingPayment(true);
     
-    console.log("Purchasing:", purchaseDetails.coins, "coins");
+    console.log("Creating payment for:", purchaseDetails.coins, "coins");
 
     try {
-      await addCoins(user!.id, purchaseDetails.coins);
-      // You might want to show a success message here
-      console.log("Purchase completed successfully!");
+      const response = await paymentService.createPayment({
+        price_amount: parseFloat(purchaseDetails.price),
+        price_currency: 'usd',
+        pay_currency: selectedCurrency,
+        coins_amount: purchaseDetails.coins,
+        order_description: purchaseDetails.packTitle 
+          ? `Purchase ${purchaseDetails.packTitle} - ${purchaseDetails.coins} coins`
+          : `Purchase ${purchaseDetails.coins} coins`,
+        success_url: `${window.location.origin}/coins/success`,
+        cancel_url: `${window.location.origin}/coins/purchase`,
+      });
+
+      if (response.data.success) {
+        const paymentData = response.data.payment;
+        
+        console.log("Invoice created:", paymentData);
+        
+        // Open NOWPayments invoice checkout page in new tab
+        if (paymentData.invoice_url) {
+          console.log("Opening invoice in new tab:", paymentData.invoice_url);
+          window.open(paymentData.invoice_url, '_blank');
+        } else {
+          console.error("No invoice URL received:", paymentData);
+        }
+      } else {
+        console.error("Payment creation failed:", response.data);
+      }
     } catch (error) {
-      console.error("Purchase failed:", error);
-      // Handle error appropriately
+      console.error("Payment creation failed:", error);
+    } finally {
+      setProcessingPayment(false);
+      setShowVerifyModal(false);
     }
   };
 
@@ -212,14 +330,14 @@ const PurchaseCoins: React.FC = () => {
 
               <div className="mb-6">
                 <label htmlFor="custom-coins" className="block text-sm font-medium text-gray-300 mb-3">
-                  Number of Coins (1 - 10,000)
+                  Number of Coins (1 - 1,000)
                 </label>
                 <div className="relative">
                   <input
                     id="custom-coins"
                     type="number"
                     min="1"
-                    max="10000"
+                    max="1000"
                     value={customAmount}
                     onChange={(e) => handleCustomAmountChange(e.target.value)}
                     className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg px-4 py-3 text-white text-lg font-medium placeholder-gray-400 focus:border-primary-500/50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-colors"
@@ -232,7 +350,7 @@ const PurchaseCoins: React.FC = () => {
 
                 <div className="flex justify-between items-center mt-2 text-sm text-gray-400">
                   <span>Minimum: 1 coin</span>
-                  <span>Maximum: 10,000 coins</span>
+                  <span>Maximum: 1,000 coins</span>
                 </div>
               </div>
 
@@ -343,41 +461,94 @@ const PurchaseCoins: React.FC = () => {
 
               {/* Payment Method */}
               <div className="mb-6">
-                <h4 className="text-white font-medium mb-3">Payment Method</h4>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setPaymentMethod('card')}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${paymentMethod === 'card'
-                      ? 'bg-primary-600/20 border-primary-600/30 text-primary-400'
-                      : 'bg-gray-700/50 border-gray-600/30 text-gray-300 hover:bg-gray-600/50'
-                      }`}
-                  >
-                    <CreditCard size={20} />
-                    <span>Credit/Debit Card</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('paypal')}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${paymentMethod === 'paypal'
-                      ? 'bg-primary-600/20 border-primary-600/30 text-primary-400'
-                      : 'bg-gray-700/50 border-gray-600/30 text-gray-300 hover:bg-gray-600/50'
-                      }`}
-                  >
-                    <Wallet size={20} />
-                    <span>PayPal</span>
-                  </button>
-                </div>
+                <h4 className="text-white font-medium mb-3">Select Cryptocurrency</h4>
+                {loadingCurrencies ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="animate-spin text-primary-500" size={24} />
+                    <span className="ml-2 text-gray-400">Loading currencies...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {availableCurrencies.map((currency) => {
+                      // Display names for USDT networks
+                      const displayNames: { [key: string]: string } = {
+                        'usdttrc20': 'USDT (TRC20)',
+                        'usdtbep20': 'USDT (BEP20)',
+                        'usdtbsc': 'USDT (BSC/BEP20)',
+                        'usdterc20': 'USDT (ERC20)',
+                        'usdtmatic': 'USDT (Polygon)',
+                        'usdtsol': 'USDT (Solana)',
+                        'usdt': 'USDT'
+                      };
+                      
+                      return (
+                        <button
+                          key={currency}
+                          onClick={() => setSelectedCurrency(currency)}
+                          className={`w-full flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors ${
+                            selectedCurrency === currency
+                              ? 'bg-primary-600/20 border-primary-600/30 text-primary-400'
+                              : 'bg-gray-700/50 border-gray-600/30 text-gray-300 hover:bg-gray-600/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Coins size={20} />
+                            <span className="font-medium">
+                              {displayNames[currency.toLowerCase()] || currency.toUpperCase()}
+                            </span>
+                          </div>
+                          {selectedCurrency === currency && (
+                            <Star size={16} fill="currentColor" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Estimated Amount */}
+                {estimatedAmount !== null && typeof estimatedAmount === 'number' && (
+                  <div className="mt-4 p-3 bg-gray-800/40 rounded-lg border border-gray-700/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Estimated Amount:</span>
+                      {loadingEstimate ? (
+                        <Loader2 className="animate-spin text-primary-500" size={16} />
+                      ) : (
+                        <span className="text-white font-bold">
+                          {estimatedAmount.toFixed(8)} {selectedCurrency.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      * Estimate may vary slightly at checkout
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Purchase Button */}
               <button
                 onClick={handlePurchaseClick}
-                className="w-full bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-700 hover:to-primary-700 text-white py-4 rounded-lg font-medium text-lg transition-all duration-200 shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40"
+                disabled={processingPayment || loadingCurrencies}
+                className={`w-full bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-700 hover:to-primary-700 text-white py-4 rounded-lg font-medium text-lg transition-all duration-200 shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40 flex items-center justify-center gap-2 ${
+                  (processingPayment || loadingCurrencies) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                Complete Purchase
+                {processingPayment ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Continue to Payment
+                    <ExternalLink size={18} />
+                  </>
+                )}
               </button>
 
               <p className="text-gray-400 text-xs text-center mt-4">
-                Secure payment processed with 256-bit SSL encryption
+                Secure cryptocurrency payment powered by NOWPayments
               </p>
             </div>
           </div>

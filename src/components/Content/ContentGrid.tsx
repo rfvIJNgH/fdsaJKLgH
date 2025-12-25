@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Masonry from "react-masonry-css";
-import { Image, Film, Coins, Lock, Users } from "lucide-react";
+import { Image, Film, Coins, Lock, Users, Star, X } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { contentService, subscriptionService } from "../../services/api";
+import { contentService, subscriptionService, reviewService } from "../../services/api";
 import PurchaseModal from "../../pages/Contents/PurchaseModal";
 import SubscribeModal from "../../pages/Contents/SubscribeModal";
 import {
@@ -33,6 +33,16 @@ const ContentGrid: React.FC<ContentGridProps> = ({ content }) => {
   }>({ isOpen: false, content: null });
   const [purchasedContent, setPurchasedContent] = useState<Set<number>>(new Set());
   const [subscribedCreators, setSubscribedCreators] = useState<Set<string>>(new Set());
+  const [contentRatings, setContentRatings] = useState<Map<number, { averageRating: string | null; totalReviews: number }>>(new Map());
+  const [reviewsModal, setReviewsModal] = useState<{
+    isOpen: boolean;
+    contentId: number | null;
+    contentTitle: string;
+    reviews: any[];
+    averageRating: string | null;
+    totalReviews: number;
+    loading: boolean;
+  }>({ isOpen: false, contentId: null, contentTitle: "", reviews: [], averageRating: null, totalReviews: 0, loading: false });
 
   const breakpointColumns = {
     default: 4,
@@ -111,6 +121,68 @@ const ContentGrid: React.FC<ContentGridProps> = ({ content }) => {
 
     checkSubscriptionStatus();
   }, [content, user]);
+
+  // Fetch ratings for all content
+  useEffect(() => {
+    const fetchContentRatings = async () => {
+      const ratingPromises = content.map(async (item) => {
+        try {
+          const response = await reviewService.getContentReviews(item.id, { limit: 1 });
+          return {
+            contentId: item.id,
+            averageRating: response.data.data.averageRating,
+            totalReviews: response.data.data.totalReviews,
+          };
+        } catch (error) {
+          return { contentId: item.id, averageRating: null, totalReviews: 0 };
+        }
+      });
+
+      const ratings = await Promise.all(ratingPromises);
+      const ratingsMap = new Map<number, { averageRating: string | null; totalReviews: number }>();
+      ratings.forEach((r) => {
+        ratingsMap.set(r.contentId, { averageRating: r.averageRating, totalReviews: r.totalReviews });
+      });
+      setContentRatings(ratingsMap);
+    };
+
+    if (content.length > 0) {
+      fetchContentRatings();
+    }
+  }, [content]);
+
+  const handleReviewClick = async (e: React.MouseEvent, item: ContentItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setReviewsModal({
+      isOpen: true,
+      contentId: item.id,
+      contentTitle: item.title,
+      reviews: [],
+      averageRating: contentRatings.get(item.id)?.averageRating || null,
+      totalReviews: contentRatings.get(item.id)?.totalReviews || 0,
+      loading: true,
+    });
+
+    try {
+      const response = await reviewService.getContentReviews(item.id, { limit: 50 });
+      setReviewsModal((prev) => ({
+        ...prev,
+        reviews: response.data.data.reviews,
+        averageRating: response.data.data.averageRating,
+        totalReviews: response.data.data.totalReviews,
+        loading: false,
+      }));
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      setReviewsModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const closeReviewsModal = () => {
+    setReviewsModal({ isOpen: false, contentId: null, contentTitle: "", reviews: [], averageRating: null, totalReviews: 0, loading: false });
+  };
 
   const getContentTypeLabel = (contentType: string) => {
     switch (contentType.toLowerCase()) {
@@ -374,9 +446,26 @@ const ContentGrid: React.FC<ContentGridProps> = ({ content }) => {
                   {/* Content Info */}
                   <div className="p-3 bg-dark-600">
                     <div className="mb-2">
-                      <p className="text-sm line-clamp-2 font-medium text-white">
-                        {item.title}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm line-clamp-2 font-medium text-white flex-1">
+                          {item.title}
+                        </p>
+                        {/* Rating Display */}
+                        {contentRatings.get(item.id)?.totalReviews ? (
+                          <button
+                            onClick={(e) => handleReviewClick(e, item)}
+                            className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors shrink-0"
+                          >
+                            <Star className="h-3.5 w-3.5 fill-yellow-400" />
+                            <span className="font-medium">
+                              {contentRatings.get(item.id)?.averageRating || "0"}
+                            </span>
+                            <span className="text-gray-400">
+                              ({contentRatings.get(item.id)?.totalReviews})
+                            </span>
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                     
                     {/* Username and additional info */}
@@ -422,6 +511,101 @@ const ContentGrid: React.FC<ContentGridProps> = ({ content }) => {
           content={subscribeModal.content}
           onSubscribe={handleSubscribe}
         />
+      )}
+
+      {/* Reviews Modal */}
+      {reviewsModal.isOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-600 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-dark-400 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Reviews</h3>
+                <p className="text-sm text-gray-400 truncate">{reviewsModal.contentTitle}</p>
+              </div>
+              <button
+                onClick={closeReviewsModal}
+                className="p-2 hover:bg-dark-500 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Average Rating */}
+            <div className="px-4 py-3 bg-dark-500/50 flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-5 w-5 ${
+                      parseFloat(reviewsModal.averageRating || "0") >= star
+                        ? "fill-yellow-400 text-yellow-400"
+                        : parseFloat(reviewsModal.averageRating || "0") >= star - 0.5
+                        ? "fill-yellow-400/50 text-yellow-400"
+                        : "text-gray-500"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-white font-medium">
+                {reviewsModal.averageRating || "0"} / 5.0
+              </span>
+              <span className="text-gray-400 text-sm">
+                ({reviewsModal.totalReviews} {reviewsModal.totalReviews === 1 ? "review" : "reviews"})
+              </span>
+            </div>
+
+            {/* Reviews List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {reviewsModal.loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                </div>
+              ) : reviewsModal.reviews.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No reviews yet
+                </div>
+              ) : (
+                reviewsModal.reviews.map((review: any) => (
+                  <div key={review.id} className="bg-dark-500 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+                          <span className="text-primary-400 text-sm font-medium">
+                            {review.username?.charAt(0).toUpperCase() || "?"}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            closeReviewsModal();
+                            handleUsernameClick(e, review.username);
+                          }}
+                          className="text-primary-400 font-medium hover:text-primary-300 transition-colors"
+                        >
+                          @{review.username}
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-yellow-400 font-medium">{review.rating}</span>
+                      </div>
+                    </div>
+                    {review.review_text && (
+                      <p className="text-gray-300 text-sm">{review.review_text}</p>
+                    )}
+                    <p className="text-gray-500 text-xs mt-2">
+                      {new Date(review.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

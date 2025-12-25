@@ -1,5 +1,5 @@
 // contexts/UserContext.tsx
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { userService } from '../services/api';
 import { User } from '../types';
 

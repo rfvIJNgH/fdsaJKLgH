@@ -210,7 +210,7 @@ async function init() {
     //streaminfo table schema
     await client.query(
       `
-      CREATE TABLE streams (
+      CREATE TABLE IF NOT EXISTS streams (
         id SERIAL PRIMARY KEY,
         room_id TEXT UNIQUE NOT NULL,
         streamer_name TEXT,
@@ -223,6 +223,126 @@ async function init() {
       );
       `
     )
+
+    // reports table schema
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        reporter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        reported_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      `
+    )
+
+    // report_images table schema
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS report_images (
+        id SERIAL PRIMARY KEY,
+        report_id INTEGER REFERENCES reports(id) ON DELETE CASCADE,
+        image_url VARCHAR(500) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      `
+    )
+
+    // contact_messages table schema
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'unread',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      `
+    )
+
+    // transactions table schema for deposits/withdrawals
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('deposit', 'withdraw')),
+        amount DECIMAL(18, 8) NOT NULL,
+        wallet_address VARCHAR(255) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      `
+    )
+
+    // reviews table schema
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        content_id INTEGER REFERENCES content(id) ON DELETE CASCADE,
+        rating DECIMAL(2, 1) NOT NULL CHECK (rating >= 1.0 AND rating <= 5.0),
+        review_text TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, content_id)
+      );
+      `
+    )
+
+    // trading_reviews table schema
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS trading_reviews (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        trading_content_id INTEGER REFERENCES trading_content(id) ON DELETE CASCADE,
+        rating DECIMAL(2, 1) NOT NULL CHECK (rating >= 1.0 AND rating <= 5.0),
+        review_text TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, trading_content_id)
+      );
+      `
+    )
+
+    // payment_transactions table schema (NOWPayments integration)
+    await client.query(
+      `
+      CREATE TABLE IF NOT EXISTS payment_transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        payment_id VARCHAR(255) UNIQUE NOT NULL,
+        order_id VARCHAR(255) NOT NULL,
+        coins_amount INTEGER NOT NULL,
+        price_amount DECIMAL(10, 2) NOT NULL,
+        price_currency VARCHAR(10) NOT NULL DEFAULT 'usd',
+        pay_currency VARCHAR(10) NOT NULL,
+        payment_status VARCHAR(50) NOT NULL DEFAULT 'waiting',
+        payment_url TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      `
+    )
+
+    // Create indexes for payment_transactions
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_payment_transactions_user_id ON payment_transactions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_payment_transactions_payment_id ON payment_transactions(payment_id);
+      CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_id ON payment_transactions(order_id);
+      CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(payment_status);
+    `);
 
     await client.query('COMMIT');
     console.log('Database schema initialized.');

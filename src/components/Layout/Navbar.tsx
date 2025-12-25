@@ -74,7 +74,7 @@ const Navbar: React.FC = () => {
 
   const handlePurchaseCoins = () => {
     // Navigate to coin purchase page or open modal
-    navigate("/purchase-coins");
+    navigate("/coins/purchase");
   };
 
   return (

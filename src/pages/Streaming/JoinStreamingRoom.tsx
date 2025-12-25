@@ -26,6 +26,7 @@ import {
 import { StreamContext } from "../../contexts/StreamContext";
 import VideoPlayer from "../../components/Streaming/VideoPlayer";
 import toast from "react-hot-toast";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -73,8 +74,9 @@ interface StreamerProfile {
 }
 
 const JoinStreamingRoom: React.FC = () => {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { roomId, streamerName } = useParams<{ roomId: string; streamerName: string }>();
   const { joinRoom, name, peers, setIsStreamer, socket } = useContext(StreamContext);
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -93,7 +95,7 @@ const JoinStreamingRoom: React.FC = () => {
       console.log('🚪 Joining room from JoinStreamingRoom:', roomId);
       // Small delay to ensure isStreamer state is updated
       const timer = setTimeout(() => {
-        joinRoom(roomId);
+        joinRoom(roomId, user?.username);
         setHasJoinedRoom(true);
       }, 100);
       return () => clearTimeout(timer);
@@ -113,6 +115,7 @@ const JoinStreamingRoom: React.FC = () => {
 
   // Stats
   const [isFollowing, setIsFollowing] = useState(false);
+  const [roomCount, setRoomCount] = useState(0);
 
   // Gift animations
   const [giftAnimations, setGiftAnimations] = useState<GiftAnimation[]>([]);
@@ -132,6 +135,22 @@ const JoinStreamingRoom: React.FC = () => {
     console.log('🧪 Test message added to verify UI rendering');
   }, []);
 
+  // Listen for room count updates from server
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRoomCount = ({ count }: { count: number }) => {
+      console.log('👥 Room count updated:', count);
+      setRoomCount(count - 1);
+    };
+
+    socket.on('room-count', handleRoomCount);
+
+    return () => {
+      socket.off('room-count', handleRoomCount);
+    };
+  }, [socket]);
+
   // Gift options
   const giftOptions: GiftOption[] = [
     { id: "heart", name: "Heart", icon: Heart, cost: 1, color: "text-red-500" },
@@ -141,11 +160,72 @@ const JoinStreamingRoom: React.FC = () => {
     { id: "trophy", name: "Trophy", icon: Trophy, cost: 50, color: "text-orange-500" },
     { id: "zap", name: "Lightning", icon: Zap, cost: 100, color: "text-primary-500" },
   ];
+
+  // Get stream data from location.state, sessionStorage, or URL params
+  const getStreamData = () => {
+    // First try location.state
+    if (location.state?.selectedStream) {
+      // Save to sessionStorage for future reloads
+      if (roomId) {
+        sessionStorage.setItem(`stream_${roomId}`, JSON.stringify(location.state.selectedStream));
+      }
+      return location.state;
+    }
+    // Fall back to sessionStorage
+    if (roomId) {
+      const storedData = sessionStorage.getItem(`stream_${roomId}`);
+      if (storedData) {
+        return { selectedStream: JSON.parse(storedData) };
+      }
+    }
+    // Fall back to URL path param for streamer name
+    if (streamerName) {
+      const decodedName = decodeURIComponent(streamerName);
+      return {
+        selectedStream: {
+          streamer: { username: decodedName }
+        }
+      };
+    }
+    return null;
+  };
+
+  const [streamData, setStreamData] = useState<any>(getStreamData);
+
+  // Update streamData when URL params change (for direct URL access)
+  useEffect(() => {
+    // If we have a streamer name in URL but no streamData, update it
+    if (streamerName && !streamData?.selectedStream?.streamer?.username) {
+      const decodedName = decodeURIComponent(streamerName);
+      const newStreamData = {
+        selectedStream: {
+          streamer: { username: decodedName }
+        }
+      };
+      setStreamData(newStreamData);
+      // Also save to sessionStorage
+      if (roomId) {
+        sessionStorage.setItem(`stream_${roomId}`, JSON.stringify(newStreamData.selectedStream));
+      }
+    }
+  }, [streamerName, roomId]);
+
+  // Update sessionStorage when joiners count changes (peers change)
+  useEffect(() => {
+    if (roomId && streamData?.selectedStream) {
+      const updatedStream = {
+        ...streamData.selectedStream,
+        joiners: peers.length,
+      };
+      sessionStorage.setItem(`stream_${roomId}`, JSON.stringify(updatedStream));
+      setStreamData({ selectedStream: updatedStream });
+    }
+  }, [peers.length, roomId]);
+
   // Mock streamer profile (in real app, fetch from backend)
-  const streamer = location.state as any;
   const streamerProfile: StreamerProfile = {
-    id: streamer?.selectedStream.id || "streamer-1",
-    username: streamer?.selectedStream.streamer.username || "StreamMaster",
+    id: streamData?.selectedStream?.id || "streamer-1",
+    username: streamData?.selectedStream?.streamer?.username || "StreamMaster",
     followers: 15420,
     following: 892,
     giftsReceived: 2847,
@@ -237,7 +317,7 @@ const JoinStreamingRoom: React.FC = () => {
   const handleSendMessage = () => {
     if (newMessage.trim() && roomId && socket) {
       const message = {
-        user: name || "Viewer",
+        user: user?.username || "Viewer",
         text: newMessage,
         isOwner: false,
       };
@@ -261,7 +341,7 @@ const JoinStreamingRoom: React.FC = () => {
   const handleSendGift = (gift: GiftOption) => {
     if (roomId && socket) {
       const giftMessage = {
-        user: name || "Viewer",
+        user: user?.username || "Viewer",
         text: `Sent a ${gift.name}! 🎁`,
         isGift: true,
         giftType: gift.id,
@@ -274,7 +354,13 @@ const JoinStreamingRoom: React.FC = () => {
 
   // Share stream
   const handleShare = () => {
-    const link = window.location.href;
+    const url = new URL(window.location.href);
+    // Add streamer name to URL if available
+    const streamerName = streamData?.selectedStream?.streamer?.username;
+    if (streamerName) {
+      url.searchParams.set('streamer', streamerName);
+    }
+    const link = url.toString();
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     toast.success("Stream link copied to clipboard!");
@@ -314,6 +400,11 @@ const JoinStreamingRoom: React.FC = () => {
     mediaElements.forEach((element) => {
       (element as HTMLMediaElement).muted = false;
     });
+
+    // Emit leaveRoom event directly to update viewer count without clearing context state
+    if (roomId && socket) {
+      socket.emit('leaveRoom', { roomId });
+    }
 
     navigate("/streaming");
   };
@@ -356,13 +447,13 @@ const JoinStreamingRoom: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <button
+            {/* <button
               onClick={() => setShowViewersList(true)}
               className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-colors"
             >
               <Users className="h-5 w-5" />
               <span>{viewerCount}</span>
-            </button>
+            </button> */}
 
             <button
               onClick={handleShare}
@@ -434,7 +525,7 @@ const JoinStreamingRoom: React.FC = () => {
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-1">
                   <Eye className="h-4 w-4" />
-                  <span>{viewerCount}</span>
+                  <span>{roomCount}</span>
                 </div>
               </div>
             </div>
@@ -465,7 +556,7 @@ const JoinStreamingRoom: React.FC = () => {
               } transition-opacity duration-300`}
           >
             <h3 className="font-semibold text-lg">Live Chat</h3>
-            <p className="text-sm text-gray-400">{viewerCount} viewers active</p>
+            <p className="text-sm text-gray-400">{roomCount} viewers active</p>
           </div>
 
           {/* Messages */}

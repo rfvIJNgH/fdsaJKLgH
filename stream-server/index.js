@@ -12,7 +12,7 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',
-    'https://arouzyfr.onrender.com'
+    'https://arouzyfro.onrender.com'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -26,7 +26,7 @@ const io = new Server(server, {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5174',
-      'https://arouzyfr.onrender.com'
+      'https://arouzyfro.onrender.com'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -43,13 +43,16 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-app.use("/api/streams", streamRouter);
-
 /* ===========================
    SOCKET.IO
 =========================== */
 
 const rooms = new Map();
+
+// Make rooms available to routes
+app.set('rooms', rooms);
+
+app.use("/api/streams", streamRouter);
 
 io.on("connection", (socket) => {
 //   socket.emit("me", socket.id);
@@ -68,6 +71,9 @@ io.on("connection", (socket) => {
     if (isStreamer) {
       room.streamer = socket.id;
     }
+
+    // Broadcast updated room count to all users in the room
+    io.to(roomId).emit("room-count", { count: room.users.size });
 
     // For one-way streaming:
     // - If joining as viewer, get the streamer info
@@ -123,6 +129,8 @@ io.on("connection", (socket) => {
           peerId: socket.id,
           isStreamer: user?.isStreamer || false,
         });
+        // Broadcast updated room count
+        socket.to(roomId).emit("room-count", { count: room.users.size });
       }
     }
 
@@ -168,6 +176,8 @@ io.on("connection", (socket) => {
           peerId: socket.id,
           isStreamer: wasStreamer,
         });
+        // Broadcast updated room count
+        socket.to(roomId).emit("room-count", { count: room.users.size });
 
         if (room.users.size === 0) {
           rooms.delete(roomId);

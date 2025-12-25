@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Define base URL for different environments
-const BASE_URL = import.meta.env.VITE_API_URL || "https://arouzy-v3-1.onrender.com";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 const CHAT_URL =
   import.meta.env.VITE_CHAT_SERVER_URL || "http://localhost:3001";
 
@@ -165,6 +165,74 @@ export const userService = {
   getUserById: async (userId: number) => {
     return api.get(`/api/users/${userId}`);
   },
+  deleteAccount: async () => {
+    return api.delete("/api/users/account");
+  },
+};
+
+// Transaction API services
+export const transactionService = {
+  deposit: async (data: { amount: number; walletAddress: string }) => {
+    return api.post("/api/transactions/deposit", data);
+  },
+  withdraw: async (data: { amount: number; walletAddress: string }) => {
+    return api.post("/api/transactions/withdraw", data);
+  },
+  getHistory: async (params?: { type?: string; status?: string; page?: number; limit?: number }) => {
+    return api.get("/api/transactions/history", { params });
+  },
+};
+
+// Report API services
+export const reportService = {
+  createReport: async (data: {
+    reportedUserId: number;
+    title: string;
+    description: string;
+    imageUrls?: string[];
+  }) => {
+    return api.post("/api/reports", data);
+  },
+  getReports: async (params?: { status?: string; page?: number; limit?: number }) => {
+    return api.get("/api/reports", { params });
+  },
+  getReportById: async (reportId: number) => {
+    return api.get(`/api/reports/${reportId}`);
+  },
+  updateReportStatus: async (reportId: number, status: string) => {
+    return api.patch(`/api/reports/${reportId}/status`, { status });
+  },
+  deleteReport: async (reportId: number) => {
+    return api.delete(`/api/reports/${reportId}`);
+  },
+};
+
+// Contact API services
+export const contactService = {
+  sendMessage: async (data: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+  }) => {
+    return api.post("/api/contact", data);
+  },
+};
+
+// Review API services
+export const reviewService = {
+  createReview: async (data: { contentId: number; rating: number; reviewText?: string }) => {
+    return api.post("/api/reviews", data);
+  },
+  getContentReviews: async (contentId: number, params?: { page?: number; limit?: number }) => {
+    return api.get(`/api/reviews/content/${contentId}`, { params });
+  },
+  getUserReview: async (contentId: number) => {
+    return api.get(`/api/reviews/user/${contentId}`);
+  },
+  deleteReview: async (reviewId: number) => {
+    return api.delete(`/api/reviews/${reviewId}`);
+  },
 };
 
 // VIP API services
@@ -178,6 +246,19 @@ export const vipService = {
   cancelVip: async () => {
     return api.post("/api/vip/cancel");
   }
+};
+
+// Trading Review API services
+export const tradingReviewService = {
+  createReview: async (data: { tradingContentId: number; rating: number; reviewText?: string }) => {
+    return api.post("/api/trading/reviews", data);
+  },
+  getReviews: async (tradingContentId: number) => {
+    return api.get(`/api/trading/reviews/${tradingContentId}`);
+  },
+  getUserReview: async (tradingContentId: number) => {
+    return api.get(`/api/trading/reviews/user/${tradingContentId}`);
+  },
 };
 
 // Trading API services
@@ -324,6 +405,55 @@ export const coinService = {
 
   deductCoins: (userId: string, coins: number) => {
     return api.post(`api/coins/${userId}/deduct`, { coins });
+  }
+};
+
+// Payment API services (NOWPayments)
+export const paymentService = {
+  // Get available currencies from NOWPayments
+  getCurrencies: async () => {
+    return api.get("/api/payment/currencies");
+  },
+
+  // Get minimum payment amount for a currency
+  getMinAmount: async (currencyFrom: string, currencyTo: string = 'usd') => {
+    return api.get("/api/payment/min-amount", {
+      params: { currency_from: currencyFrom, currency_to: currencyTo }
+    });
+  },
+
+  // Get estimated price in cryptocurrency
+  getEstimate: async (amount: number, currencyFrom: string, currencyTo: string = 'usd') => {
+    return api.get("/api/payment/estimate", {
+      params: { 
+        amount, 
+        currency_from: currencyFrom,
+        currency_to: currencyTo 
+      }
+    });
+  },
+
+  // Create a new payment
+  createPayment: async (data: {
+    price_amount: number;
+    price_currency?: string;
+    pay_currency: string;
+    coins_amount: number;
+    order_description?: string;
+    success_url?: string;
+    cancel_url?: string;
+  }) => {
+    return api.post("/api/payment/create", data);
+  },
+
+  // Get payment status
+  getPaymentStatus: async (paymentId: string) => {
+    return api.get(`/api/payment/status/${paymentId}`);
+  },
+
+  // Get payment history
+  getPaymentHistory: async (params?: { page?: number; limit?: number }) => {
+    return api.get("/api/payment/history", { params });
   }
 };
 

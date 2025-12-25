@@ -214,7 +214,7 @@ const UpgradePage: React.FC = () => {
                 <button
                   onClick={() => {
                     setShowInsufficientCoins(false);
-                    navigate("/purchase-coins");
+                    navigate("/coins/purchase");
                   }}
                   className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
                 >

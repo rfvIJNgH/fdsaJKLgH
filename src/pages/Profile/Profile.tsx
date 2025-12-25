@@ -12,11 +12,15 @@ import {
   Edit,
   Crown,
   Gift,
-  Camera
+  Camera,
+  ImagePlus,
+  Trash2
 } from "lucide-react";
 import {
   contentService,
   userService,
+  reportService,
+  uploadService,
 } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { UserProfile } from "../../interface/interface";
@@ -57,7 +61,11 @@ const Profile: React.FC = () => {
     title: "",
     description: ""
   });
+  const [reportImages, setReportImages] = useState<File[]>([]);
+  const [reportImagePreviews, setReportImagePreviews] = useState<string[]>([]);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const reportImageInputRef = useRef<HTMLInputElement>(null);
   const [receiverProfile, setReceiverProfile] = useState<receiverProfile | null>(null);
 
 
@@ -237,12 +245,51 @@ const Profile: React.FC = () => {
     setShowMenu(false);
     setShowReportModal(true);
     setReportData({ title: "", description: "" });
+    setReportImages([]);
+    setReportImagePreviews([]);
   };
 
 
   const handleCancelReport = () => {
     setShowReportModal(false);
     setReportData({ title: "", description: "" });
+    setReportImages([]);
+    setReportImagePreviews([]);
+  };
+
+
+  const handleReportImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Limit to 5 images
+    const maxImages = 5;
+    const remainingSlots = maxImages - reportImages.length;
+    const filesToAdd = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      alert(`You can only upload up to ${maxImages} images. Only ${remainingSlots} more can be added.`);
+    }
+
+    // Create preview URLs
+    const newPreviews = filesToAdd.map(file => URL.createObjectURL(file));
+    
+    setReportImages(prev => [...prev, ...filesToAdd]);
+    setReportImagePreviews(prev => [...prev, ...newPreviews]);
+
+    // Reset input
+    if (reportImageInputRef.current) {
+      reportImageInputRef.current.value = '';
+    }
+  };
+
+
+  const handleRemoveReportImage = (index: number) => {
+    // Revoke the object URL to free memory
+    URL.revokeObjectURL(reportImagePreviews[index]);
+    
+    setReportImages(prev => prev.filter((_, i) => i !== index));
+    setReportImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
 
@@ -252,23 +299,41 @@ const Profile: React.FC = () => {
       return;
     }
 
+    if (!profile?.user.id) {
+      alert("Cannot submit report: User not found");
+      return;
+    }
 
     setIsSubmittingReport(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log("Report submitted:", {
-        reportedUser: profile?.user.username,
+      // Upload images first if any
+      let imageUrls: string[] = [];
+      if (reportImages.length > 0) {
+        setIsUploadingImages(true);
+        const uploadResponse = await uploadService.uploadMultipleFiles(reportImages);
+        imageUrls = uploadResponse.data.urls || [];
+        setIsUploadingImages(false);
+      }
+
+      // Submit the report to the database
+      await reportService.createReport({
+        reportedUserId: profile.user.id,
         title: reportData.title,
-        description: reportData.description
+        description: reportData.description,
+        imageUrls
       });
+
       alert("Report submitted successfully");
       setShowReportModal(false);
       setReportData({ title: "", description: "" });
+      setReportImages([]);
+      setReportImagePreviews([]);
     } catch (error) {
       console.error("Error submitting report:", error);
       alert("Failed to submit report. Please try again.");
     } finally {
       setIsSubmittingReport(false);
+      setIsUploadingImages(false);
     }
   };
 
@@ -713,6 +778,59 @@ const Profile: React.FC = () => {
                   disabled={isSubmittingReport}
                 />
               </div>
+
+
+              {/* Image Attachments */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Attach Images (Optional - Max 5)
+                </label>
+                
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  ref={reportImageInputRef}
+                  onChange={handleReportImageSelect}
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={isSubmittingReport || reportImages.length >= 5}
+                />
+
+                {/* Image previews */}
+                {reportImagePreviews.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {reportImagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={preview}
+                          alt={`Attachment ${index + 1}`}
+                          className="w-full h-20 object-cover rounded-lg border border-gray-600"
+                        />
+                        <button
+                          onClick={() => handleRemoveReportImage(index)}
+                          disabled={isSubmittingReport}
+                          className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add image button */}
+                {reportImages.length < 5 && (
+                  <button
+                    onClick={() => reportImageInputRef.current?.click()}
+                    disabled={isSubmittingReport}
+                    className="w-full py-3 border-2 border-dashed border-gray-600 hover:border-gray-500 rounded-lg text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <ImagePlus size={20} />
+                    <span>Add Images ({reportImages.length}/5)</span>
+                  </button>
+                )}
+              </div>
             </div>
 
 
@@ -732,7 +850,7 @@ const Profile: React.FC = () => {
                 {isSubmittingReport ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Sending...
+                    {isUploadingImages ? "Uploading..." : "Sending..."}
                   </>
                 ) : (
                   "Send Report"

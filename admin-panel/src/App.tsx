@@ -1,4 +1,3 @@
-import React from 'react';
 import AdminPanel from './pages/AdminPanel';
 import { UserProvider } from './contexts/userContext';
 

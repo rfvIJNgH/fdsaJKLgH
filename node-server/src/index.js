@@ -21,6 +21,11 @@ import { coinRouter} from './routes/coin.js';
 import { purchaseRouter } from './routes/purchase.js';
 import { subscriptionRouter } from './routes/subscription.js';
 import { vipRouter } from './routes/vip.js';
+import { reportRouter } from './routes/report.js';
+import { contactRouter } from './routes/contact.js';
+import { transactionRouter } from './routes/transaction.js';
+import { reviewRouter } from './routes/review.js';
+import { paymentRouter } from './routes/payment.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
@@ -41,7 +46,8 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',
-    'https://arouzyfr.onrender.com'
+    'https://arouzyfro.onrender.com',
+    'https://adminarouzy.onrender.com'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -55,7 +61,8 @@ const io = new Server(server, {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5174',
-      'https://arouzyfr.onrender.com'
+      'https://arouzyfro.onrender.com',
+      'https://adminarouzy.onrender.com'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -105,6 +112,11 @@ app.use('/api/messages', messageRouter);
 app.use('/api/coins', coinRouter);
 app.use('/api/subscriptions', subscriptionRouter);
 app.use('/api/vip', vipRouter);
+app.use('/api/reports', reportRouter);
+app.use('/api/contact', contactRouter);
+app.use('/api/transactions', transactionRouter);
+app.use('/api/reviews', reviewRouter);
+app.use('/api/payment', paymentRouter);
 
 
 // Track connected users

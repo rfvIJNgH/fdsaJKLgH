@@ -33,7 +33,9 @@ import Analytics from "./pages/Analytics Dashboard/Analytics";
 import Streaming from "./pages/Streaming/Streaming";
 import MyContent from "./pages/Contents/MyContent";
 import PurchaseCoins from "./pages/Coins/PurchaseCoins";
+import PaymentSuccess from "./pages/Coins/PaymentSuccess";
 import UpgradePlan from "./pages/UpgradePlan";
+import ContactUs from "./pages/ContactUs";
 import StreamingRoom from "./pages/Streaming/StreamingRoom";
 import JoinStreamingRoom from "./pages/Streaming/JoinStreamingRoom";
 import LayoutWithoutNav from "./components/Layout/LayoutWithoutNav";
@@ -49,7 +51,7 @@ function App() {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
   const { setSocketConnect } = useChatStore();
-  const socket = useSocket('https://arouzy-v3-1.onrender.com');
+  const socket = useSocket('http://localhost:8080');
 
   useEffect(() => {
     if (socket && user) {
@@ -129,6 +131,9 @@ function App() {
                 {/*Moderation Page*/}
                 <Route path="/moderation" element={<Moderation />} />
 
+                {/* Contact Us Page */}
+                <Route path="/contactus" element={<ContactUs />} />
+
                 {/* Content Detail Page */}
                 <Route path="/content/:id" element={<ContentDetail />} />
 
@@ -190,7 +195,10 @@ function App() {
                 <Route path="/analytics" element={<Analytics />} />
 
                 {/*Purchase Page */}
-                <Route path="/purchase-coins" element={<PurchaseCoins />} />
+                <Route path="/coins/purchase" element={
+                  isAuthenticated ? <PurchaseCoins /> : <Navigate to="/login" state={{ from: location }} replace />
+                  } />
+                <Route path="/coins/success" element={<PaymentSuccess />} />
 
                 {/*UpgradePlan Page*/}
                 <Route path="/upgradeplan" element={<UpgradePlan />} />
@@ -211,7 +219,7 @@ function App() {
                     <Navigate to="/login" state={{ from: location }} replace />
                   )
                 } />
-                <Route path="/streaming/joinstreaming/:roomId" element={
+                <Route path="/streaming/joinstreaming/:roomId/:streamerName" element={
                   isAuthenticated ? (
                     <StreamProvider>
                       <JoinStreamingRoom />

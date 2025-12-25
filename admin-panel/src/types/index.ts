@@ -27,3 +27,33 @@ export interface Thread {
   status: 'active' | 'awaiting_moderation' | 'archived';
   replies: number;
 }
+
+export interface ReportImage {
+  id: number;
+  image_url: string;
+}
+
+export interface Report {
+  id: number;
+  title: string;
+  description: string;
+  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  created_at: string;
+  updated_at: string;
+  reporter_id: number;
+  reporter_username: string;
+  reported_user_id: number;
+  reported_username: string;
+  images: ReportImage[];
+}
+
+export interface ContactMessage {
+  id: number;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'replied' | 'archived';
+  created_at: string;
+  updated_at: string;
+}

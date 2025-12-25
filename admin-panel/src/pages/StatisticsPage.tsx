@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Users, Eye, User, FileText, Shield } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { useUsers } from '../contexts/userContext';
 
 const StatisticsPage: React.FC = () => {
-  const { allUsers, loading } = useUsers();
+  const { allUsers } = useUsers();
 
   const activeUsers = useMemo(() => {
     return allUsers.filter(user => {

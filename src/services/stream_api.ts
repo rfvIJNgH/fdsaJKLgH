@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Define base URL for different environments
-const BASE_URL = "https://arouzy-v3-stream-server.onrender.com";
+const BASE_URL = "http://localhost:8081";
 
 export const api = axios.create({
     baseURL: BASE_URL,

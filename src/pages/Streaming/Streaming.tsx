@@ -50,7 +50,7 @@ const Streaming: React.FC = () => {
                             avatar: "/default-avatar.png",
                         },
                         thumbnail: "/default-thumbnail.jpg",
-                        joiners: 0,
+                        joiners: Math.max((s.viewer_count || 0) - 1, 0),
                         title: s.title,
                         type: s.stream_type,
                         price: s.price,
@@ -107,7 +107,8 @@ const Streaming: React.FC = () => {
         console.log("Navigating to stream:", streamId);
         // Just navigate - let JoinStreamingRoom handle the actual joining
         // This prevents double-joining issues
-        navigate(`/streaming/joinstreaming/${streamId}` , { state: { selectedStream } });
+        const streamerName = encodeURIComponent(selectedStream?.streamer?.username || 'Streamer');
+        navigate(`/streaming/joinstreaming/${streamId}/${streamerName}` , { state: { selectedStream } });
     };
 
     const handleUsernameClick = (e: React.MouseEvent, username: string) => {

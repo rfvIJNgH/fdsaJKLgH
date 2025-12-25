@@ -18,8 +18,10 @@ import {
   Lock,
   Edit,
   Trash2,
+  Star,
+  X,
 } from "lucide-react";
-import { contentService, userService } from "../../services/api";
+import { contentService, userService, reviewService } from "../../services/api";
 import {
   getThumbnailUrl,
   isImageUrl,
@@ -85,6 +87,13 @@ const ContentDetail: React.FC = () => {
     isOpen: boolean;
     isDeleting: boolean;
   }>({ isOpen: false, isDeleting: false });
+
+  // Review state
+  const [reviewModal, setReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
 
 
   useEffect(() => {
@@ -219,6 +228,35 @@ const ContentDetail: React.FC = () => {
 
   const handleDeleteClick = () => {
     setDeleteModal({ isOpen: true, isDeleting: false });
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!content || !isAuthenticated) {
+      toast.error("Please login to submit a review");
+      return;
+    }
+    if (reviewRating === 0) {
+      toast.error("Please select a rating");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await reviewService.createReview({
+        contentId: content.id,
+        rating: reviewRating,
+        reviewText: reviewText.trim(),
+      });
+      toast.success("Review submitted successfully!");
+      setReviewModal(false);
+      setReviewRating(0);
+      setReviewText("");
+    } catch (error: any) {
+      console.error("Error submitting review:", error);
+      toast.error(error.response?.data?.message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
 
@@ -794,11 +832,16 @@ const ContentDetail: React.FC = () => {
                   )}
                   <button
                     onClick={() => {
-                      toast.success("Reported successfully");
+                      if (!isAuthenticated) {
+                        toast.error("Please login to submit a review");
+                        return;
+                      }
+                      setReviewModal(true);
                     }}
-                    className="px-4 py-2 text-white rounded-md bg-red-600 hover:bg-red-700 transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-2 text-white rounded-md bg-yellow-600 hover:bg-yellow-700 transition-colors"
                   >
-                    Report
+                    <Star className="w-4 h-4" />
+                    Review
                   </button>
                   <button
                     onClick={HandleDonate}
@@ -882,6 +925,107 @@ const ContentDetail: React.FC = () => {
           currentIndex={0}
           contentTitle={content.title}
         />
+      )}
+
+      {/* Review Modal */}
+      {reviewModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-600 rounded-xl max-w-md w-full border border-gray-700 shadow-xl">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-700">
+              <h3 className="text-xl font-bold text-white">Write a Review</h3>
+              <button
+                onClick={() => {
+                  setReviewModal(false);
+                  setReviewRating(0);
+                  setReviewText("");
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Star Rating */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Rating
+                </label>
+                <div className="flex gap-2 justify-center">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="transition-transform hover:scale-110"
+                    >
+                      <Star
+                        size={40}
+                        className={`${
+                          star <= (hoverRating || reviewRating)
+                            ? "text-yellow-400 fill-yellow-400"
+                            : "text-gray-500"
+                        } transition-colors`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <p className="text-center text-gray-400 mt-2">
+                  {reviewRating > 0 ? `${reviewRating}.0 out of 5.0` : "Select a rating"}
+                </p>
+              </div>
+
+              {/* Review Text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Your Review (Optional)
+                </label>
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  rows={4}
+                  placeholder="Share your thoughts about this content..."
+                  className="w-full px-4 py-3 bg-dark-500 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex gap-3 p-6 border-t border-gray-700">
+              <button
+                onClick={() => {
+                  setReviewModal(false);
+                  setReviewRating(0);
+                  setReviewText("");
+                }}
+                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReviewSubmit}
+                disabled={reviewRating === 0 || submittingReview}
+                className="flex-1 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {submittingReview ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Star size={18} />
+                    Submit Review
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

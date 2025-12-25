@@ -127,8 +127,11 @@ streamRouter.post("/:roomId/end", async (req, res) => {
 /* ===========================
    GET ALL ACTIVE STREAMS
 =========================== */
-streamRouter.get("/", async (_req, res) => {
+streamRouter.get("/", async (req, res) => {
   const client = await pool.connect();
+  
+  // Get the rooms Map from the app (passed via app.set)
+  const rooms = req.app.get('rooms');
 
   try {
     const { rows } = await client.query(`
@@ -144,7 +147,17 @@ streamRouter.get("/", async (_req, res) => {
       ORDER BY created_at DESC
     `);
 
-    res.json(rows);
+    // Add viewer count from in-memory rooms Map
+    const streamsWithViewers = rows.map(stream => {
+      const room = rooms?.get(stream.id);
+      const viewerCount = room ? room.users.size : 0;
+      return {
+        ...stream,
+        viewer_count: viewerCount
+      };
+    });
+
+    res.json(streamsWithViewers);
   } catch (error) {
     console.error("Get streams error:", error);
     res.status(500).json({ message: "Failed to fetch streams" });

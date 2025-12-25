@@ -30,7 +30,7 @@ interface StreamContextType {
   stream?: MediaStream;
   peers: PeerEntry[];
   myVideo: React.RefObject<HTMLVideoElement>;
-  joinRoom: (roomOverride?: string) => void;
+  joinRoom: (roomOverride?: string, name?: string) => void;
   leaveRoom: () => void;
   isStreamer: boolean;
   setIsStreamer: (isStreamer: boolean) => void;
@@ -44,7 +44,7 @@ interface ContextProviderProps {
 /* ================= SOCKET ================= */
 
 // Use localhost for development, render.com for production
-const socket: Socket = io('https://arouzy-v3-stream-server.onrender.com');
+const socket: Socket = io('http://localhost:8081');
 
 socket.on('connect', () => {
   console.log('✅ Socket connected:', socket.id);
@@ -75,7 +75,6 @@ export const StreamProvider = ({ children }: ContextProviderProps) => {
   const [roomId, setRoomId] = useState<string>('');
   const [joinedRoom, setJoinedRoom] = useState<boolean>(false);
   const [peers, setPeers] = useState<PeerEntry[]>([]);
-  const [autoRoomCreated, setAutoRoomCreated] = useState<boolean>(false);
   const [isStreamer, setIsStreamer] = useState<boolean>(false);
 
   const myVideo = useRef<HTMLVideoElement>(null);
@@ -281,7 +280,7 @@ export const StreamProvider = ({ children }: ContextProviderProps) => {
 
   /* ================= ACTIONS ================= */
 
-  const joinRoom = (roomOverride?: string) => {
+  const joinRoom = (roomOverride?: string, name?: string) => {
     const targetRoom = roomOverride || roomId;
     
     console.log('🚪 Attempting to join room:', { targetRoom, isStreamer, hasStream: !!stream });

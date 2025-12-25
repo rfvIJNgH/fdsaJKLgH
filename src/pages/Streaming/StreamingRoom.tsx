@@ -49,7 +49,6 @@ const StreamingRoom: React.FC = () => {
   // Stream states
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
-  const [streamTitle, setStreamTitle] = useState("My Live Stream");
 
   // Set as streamer and room ID from URL when component mounts
   useEffect(() => {
@@ -91,9 +90,6 @@ const StreamingRoom: React.FC = () => {
   const [showEndStreamModal, setShowEndStreamModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Stats
-  const [likes, setLikes] = useState(0);
-
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Add test message to verify UI rendering works
@@ -111,12 +107,6 @@ const StreamingRoom: React.FC = () => {
 
   // Viewers based on connected peers + self
   const viewers: Viewer[] = [
-    {
-      id: "me",
-      username: name || "Me",
-      isOnline: true,
-      joinedAt: new Date(),
-    },
     ...peers.map((peer) => ({
       id: peer.id,
       username: peer.name || "Anonymous",
@@ -246,8 +236,9 @@ const StreamingRoom: React.FC = () => {
 
   // Share room link
   const handleShare = () => {
-    const link = `${window.location.origin}/streaming/joinstreaming/${roomId}`;
-    console.log('📋 Sharing room link:', link, 'RoomID:', roomId);
+    const streamerName = encodeURIComponent(name || 'Streamer');
+    const link = `${window.location.origin}/streaming/joinstreaming/${roomId}/${streamerName}`;
+    console.log('📋 Sharing room link:', link, 'RoomID:', roomId, 'Streamer:', name);
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     toast.success("Room link copied to clipboard!");
@@ -301,7 +292,7 @@ const StreamingRoom: React.FC = () => {
               <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
               <span className="text-red-500 font-semibold">LIVE</span>
             </div>
-            <h1 className="text-xl font-bold">{streamTitle}</h1>
+            <h1 className="text-xl font-bold">{title}</h1>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -542,7 +533,14 @@ const StreamingRoom: React.FC = () => {
                         ></div>
                       </div>
                       <div>
-                        <p className="font-medium">{viewer.username}</p>
+                        <a
+                          href={`/${viewer.username}/profile`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium hover:text-primary-400 hover:underline cursor-pointer transition-colors"
+                        >
+                          {viewer.username}
+                        </a>
                         <p className="text-xs text-gray-400">
                           Joined{" "}
                           {viewer.joinedAt.toLocaleTimeString([], {

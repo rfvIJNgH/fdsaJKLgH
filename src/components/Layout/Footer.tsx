@@ -183,10 +183,10 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/dmca"
+                  to="/contactus"
                   className="text-gray-400 hover:text-white transition-colors duration-200"
                 >
-                  DMCA/Abuse
+                  Contact Us
                 </Link>
               </li>
               <li>

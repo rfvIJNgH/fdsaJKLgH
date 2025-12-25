@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Users, FileText, MessageCircleWarning  } from 'lucide-react';
+import { BarChart3, Users, FileText, MessageCircleWarning, Mail } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -27,6 +27,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       id: 'reports',
       label: 'Reports',
       icon: MessageCircleWarning
+    },
+    {
+      id: 'contact-messages',
+      label: 'Contact Messages',
+      icon: Mail
     }
   ];
 

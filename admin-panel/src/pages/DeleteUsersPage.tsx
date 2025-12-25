@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import SearchInput from '../components/SearchInput';
 import DeleteButton from '../components/DeleteButton';
 import { getUsergroupBadge } from '../utils/badges';
@@ -8,7 +8,7 @@ import { useUsers } from '../contexts/userContext';
 const DeleteUsersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-  const { allUsers, loading, error, refetchUsers } = useUsers();
+  const { allUsers } = useUsers();
 
   const filteredUsers = allUsers.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||

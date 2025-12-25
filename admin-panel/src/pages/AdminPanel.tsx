@@ -5,6 +5,7 @@ import StatisticsPage from './StatisticsPage';
 import DeleteUsersPage from './DeleteUsersPage';
 import DeletePostsPage from './DeletePostsPage';
 import Reports from './ReportsPage';
+import ContactMessagesPage from './ContactMessagesPage';
 
 const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState('statistics');
@@ -19,6 +20,8 @@ const AdminPanel: React.FC = () => {
         return <DeletePostsPage />;
       case 'reports' :
         return <Reports/>
+      case 'contact-messages':
+        return <ContactMessagesPage />;
       default:
         return <StatisticsPage />;
     }

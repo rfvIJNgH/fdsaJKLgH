@@ -50,7 +50,7 @@ const SubscribeModal: React.FC<SubscribeModalProps> = ({
 
   const handleAddCoins = () => {
     onClose();
-    navigate('/purchase-coins');
+    navigate('/coins/purchase');
   };
 
   return (

@@ -89,7 +89,7 @@ const MessageInput: React.FC = () => {
     setShowPurchaseModal(false);
     setShowGiftInterface(false);
     setSelectedGift(null);
-    navigate('/purchase-coins');
+    navigate('/coins/purchase');
   };
 
   const closePurchaseModal = () => {
